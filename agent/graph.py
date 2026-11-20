@@ -48,7 +48,9 @@ DELEGATED_NODES = ["load_memory", "scrape_ubereats", "scrape_doordash", "normali
 ALL_NODES = DELEGATED_NODES[:1] + P1_NODES[:1] + DELEGATED_NODES[1:6] + P1_NODES[1:] + DELEGATED_NODES[6:]
 NODE_SOURCES: dict[str, str] = {}
 
-_ranker_provider: Callable[[str], str] = lambda user_id: os.getenv("RANKER", "price")  # noqa: E731
+# Reranker by default: on real menus the price-only ranker picks condiments and drinks. P3's Statsig flag
+# overrides this per user; filter_rank falls back to price (and logs it) when SIE is down.
+_ranker_provider: Callable[[str], str] = lambda user_id: os.getenv("RANKER", "reranker")  # noqa: E731
 
 
 def set_ranker_provider(fn: Callable[[str], str]) -> None:

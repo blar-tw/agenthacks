@@ -82,3 +82,50 @@ def test_rejecting_a_dish_also_drops_its_twin_on_the_other_platform():
     cons = contracts.Constraints(**state["constraints"])
     kept = {k.offer.offer_id for k in rank.filter_offers(offers, cons, {}, [contracts.Match(**m) for m in state["matches"]], [a]).kept}
     assert a not in kept and b not in kept
+
+
+def test_sides_drinks_and_condiments_are_not_dishes():
+    from data import rank
+
+    def off(item):
+        return contracts.Offer(restaurant="R", item=item, price=5.0, source="ubereats")
+    for side in ["House Hot Mustard 2oz", "Coke", "Diet Coke (健怡)", "Steamed Rice 白米飯", "Lemon Ice Tea",
+                 "Signature Chili Bean Sauce", "Side Peking Duck"]:
+        assert rank.is_side(off(side)), side
+    for dish in ["Eggplant in Garlic Sauce", "Fried Rice w.Preserved Mustard Greens, Minced Pork",
+                 "Pork Intestine Wit Chili Sauce", "Tan Tan Noodle 擔擔麵", "Tea Smoked Duck"]:
+        assert not rank.is_side(off(dish)), dish
+
+
+def test_price_ranker_skips_a_cheap_condiment():
+    from data import rank
+    offers = [contracts.Offer(restaurant="China Live", item="House Hot Mustard 2oz", price=6.95, source="ubereats"),
+              contracts.Offer(restaurant="Z&Y", item="Spicy Tan Tan Noodle", price=18.0, source="ubereats")]
+    cons = contracts.Constraints(dish_query="spicy noodles", people=2)
+    fr = rank.filter_offers(offers, cons, {}, [], [])
+    assert [r.offer.item for r in fr.kept] == ["Spicy Tan Tan Noodle"]
+    assert any(x["reason"] == "side, drink or add-on" for x in fr.removed)
+
+
+def test_default_ranker_is_the_reranker(monkeypatch):
+    from agent import graph
+    monkeypatch.delenv("RANKER", raising=False)
+    assert graph._ranker_provider("demo") == "reranker"
+
+
+def test_explain_facts_say_which_option_is_cheapest():
+    from agent import llm
+    calls = []
+
+    class Rec:
+        def invoke(self, msgs):
+            calls.append(msgs)
+            return type("M", (), {"content": "ok", "response_metadata": {}, "usage_metadata": None})()
+    llm.set_llm(Rec())
+    opts = [{"offer": {"restaurant": "Z&Y", "item": "Vermicelli", "source": "ubereats", "eta_min": None},
+             "total": 33.9, "ranker": "reranker"},
+            {"offer": {"restaurant": "Z&Y", "item": "Cold Noodle", "source": "ubereats", "eta_min": None},
+             "total": 25.9, "ranker": "reranker"}]
+    llm.summarize_options({"raw_text": "spicy noodles"}, opts)
+    human = calls[0][1].content if hasattr(calls[0], "__getitem__") else calls[0].to_messages()[1].content
+    assert '"cheapest_shown": false' in human and '"cheapest_shown": true' in human and "relevance" in human

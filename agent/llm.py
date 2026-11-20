@@ -196,8 +196,15 @@ def extract_constraints(text: str, memory: dict | None = None) -> tuple[Constrai
 def summarize_options(constraints: dict, options: list[dict]) -> tuple[str, str]:
     """One short paragraph about the ranked options. Returns (text, writer)."""
     llm = get_llm()
+    totals = [o.get("total") for o in options if o.get("total") is not None]
+    etas = [o["offer"].get("eta_min") for o in options if o["offer"].get("eta_min") is not None]
+    ranked_by = "relevance to the request (reranker)" if options and options[0].get("ranker") == "reranker" \
+        else "total price"
     facts = [{"n": i + 1, "restaurant": o["offer"]["restaurant"], "item": o["offer"]["item"],
-              "platform": o["offer"]["source"], "total_usd": o.get("total"), "eta_min": o["offer"].get("eta_min")}
+              "platform": o["offer"]["source"], "total_usd": o.get("total"), "eta_min": o["offer"].get("eta_min"),
+              "ranked_by": ranked_by,
+              "cheapest_shown": o.get("total") is not None and o.get("total") == min(totals),
+              "fastest_shown": bool(etas) and o["offer"].get("eta_min") == min(etas)}
              for i, o in enumerate(options)]
     if llm is not None and facts:
         try:
