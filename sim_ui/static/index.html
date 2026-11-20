@@ -140,14 +140,23 @@ svg text { font-family: Inter, system-ui, sans-serif; }
 
 /* parse */
 .parse { position: absolute; inset: 66px 18px 18px; display: flex; flex-direction: column; gap: 18px; }
-.req { font-size: 17px; line-height: 1.55; background: var(--surface-2); border-radius: 12px; padding: 14px 16px; }
-.req mark { background: color-mix(in srgb, var(--accent) 22%, transparent); color: inherit; border-radius: 4px; padding: 0 2px; transition: background .4s; }
+.req { font-size: 18px; line-height: 1.9; background: var(--surface-2); border-radius: 12px; padding: 14px 18px; }
+.hl { position: relative; z-index: 0; white-space: nowrap; }
+.hl::before { content: ""; position: absolute; z-index: -1; left: var(--l); right: var(--r); top: var(--t); bottom: var(--b);
+  background: var(--mk); opacity: .6; border-radius: 3px 12px 4px 14px / 10px 4px 12px 5px; transform: rotate(var(--rot)) skewX(-10deg); }
+.hl::after { content: ""; position: absolute; z-index: -1; left: calc(var(--l) + 6px); right: calc(var(--r) + 10px); bottom: calc(var(--b) + 2px); height: 35%;
+  background: var(--mk); opacity: .35; border-radius: 8px; transform: rotate(calc(var(--rot) * -1.4)); }
+.hl.draw::before, .hl.draw::after { animation: marker .42s cubic-bezier(.6,0,.3,1) both; }
+@keyframes marker { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 -10% 0 0); } }
+.flyer { position: absolute; z-index: 6; pointer-events: none; font-size: 18px; font-weight: 700; padding: 0 6px; border-radius: 6px; background: var(--mk); color: #1d1b17; box-shadow: 0 6px 18px rgba(0,0,0,.18); white-space: nowrap; }
 .chips { display: flex; flex-wrap: wrap; gap: 10px; }
-.cchip { border: 1px solid var(--border); border-radius: 12px; padding: 8px 12px; min-width: 110px; opacity: 0; transform: translateY(10px); transition: all .4s; background: var(--surface); }
-.cchip.in { opacity: 1; transform: none; }
+.cchip { border: 2px solid var(--mk, var(--border)); border-radius: 12px; padding: 8px 12px; min-width: 120px; background: var(--surface); transition: transform .3s, background .3s; }
+.cchip.wait { border-style: dashed; border-color: var(--border); }
+.cchip.wait b { color: var(--muted); }
+.cchip.in { animation: land .4s cubic-bezier(.2,1.6,.4,1); background: color-mix(in srgb, var(--mk) 14%, var(--surface)); }
+@keyframes land { 0% { transform: scale(.94); } 60% { transform: scale(1.06); } 100% { transform: scale(1); } }
 .cchip small { display: block; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
-.cchip b { font-size: 16px; }
-.cchip.rule { border-color: var(--rule); }
+.cchip b { font-size: 16px; display: block; min-height: 22px; }
 .cchip.rule b { color: var(--rule); }
 .cchip em { font-style: normal; font-size: 10.5px; color: var(--mem); display: block; }
 
@@ -567,29 +576,91 @@ const Stages = {
   },
 
   parse: {
-    init(p) { p.innerHTML = `<div class="cap"><h4>Understanding your request</h4><p>SIE · Qwen3.8 27B turns words into hard constraints</p></div><div class="parse"><div class="req"></div><div class="chips"></div></div>`; this.p = p; },
+    init(p) {
+      p.innerHTML = `<div class="cap"><h4>Understanding your request</h4><p>SIE · Qwen3.8 27B reads your words and fills in the constraints</p></div>
+        <div class="parse"><div class="req"></div><div class="chips"></div></div>`;
+      this.p = p; this.ranges = [];
+    },
+    paint(current) {   // re-render the sentence with every highlighted range; only `current` animates
+      const t = this.text, rs = [...this.ranges].sort((x, y) => x.start - y.start);
+      let html = "", at = 0;
+      for (const r of rs) {
+        html += esc(t.slice(at, r.start));
+        html += `<span class="hl ${r === current ? "draw" : ""}" style="--mk:${r.color};--rot:${r.rot}deg;--t:${r.t}em;--b:${r.b}em;--l:${r.l}px;--r:${r.r}px" data-i="${r.id}">${esc(t.slice(r.start, r.end))}</span>`;
+        at = r.end;
+      }
+      $(".req", this.p).innerHTML = html + esc(t.slice(at));
+    },
+    find(re) {   // first match that does not overlap an existing highlight
+      if (!re || !this.text) return null;
+      const g = new RegExp(re.source, re.flags.includes("g") ? re.flags : re.flags + "g");
+      for (const m of this.text.matchAll(g)) {
+        const start = m.index, end = start + m[0].length;
+        if (!this.ranges.some(r => start < r.end && end > r.start)) return { start, end };
+      }
+      return null;
+    },
+    async fly(span, target, color) {
+      const host = this.p.getBoundingClientRect(), a = span.getBoundingClientRect(), b = target.getBoundingClientRect();
+      const f = el(`<div class="flyer" style="--mk:${color}">${esc(span.textContent)}</div>`);
+      f.style.left = (a.left - host.left) + "px"; f.style.top = (a.top - host.top) + "px";
+      this.p.appendChild(f);
+      const dx = b.left - a.left + 4, dy = b.top - a.top + 2, lift = -50 - Math.random() * 40, tilt = (Math.random() * 16 - 8).toFixed(1);
+      await f.animate([
+        { transform: "translate(0,0) rotate(0) scale(1)", opacity: 1 },
+        { transform: `translate(${dx * .45}px, ${dy * .45 + lift}px) rotate(${tilt}deg) scale(1.18)`, opacity: 1, offset: .45 },
+        { transform: `translate(${dx}px, ${dy}px) rotate(0) scale(.92)`, opacity: .9 },
+      ], { duration: 720, easing: "cubic-bezier(.35,0,.25,1)" }).finished.catch(() => {});
+      f.remove();
+    },
     async event(e) {
       const pl = e.payload || {};
-      if (pl.request_text) { this.text = pl.request_text; $(".req", this.p).textContent = pl.request_text; return; }
+      if (pl.request_text) { this.text = pl.request_text; this.ranges = []; this.paint(); return; }
       if (!pl.constraints) return;
+      if (!this.text) { this.text = pl.constraints.raw_text || ""; this.paint(); }
       const term = x => rkey(String(x).toLowerCase().replace(/^(dislikes|no|never)\s+/, "")).replace(/s$/, "");
       const c = pl.constraints, fromMem = new Set((facts.memoryEvent?.hard_rules || []).map(term)), fresh = new Set((pl.new_hard_rules || []).map(term));
+      const MK = { y: "#ffd43b", p: "#ff8fab", g: "#8ce99a", b: "#74c0fc", o: "#ffa94d", r: "#ff6b6b", v: "#b197fc" };
+      const STOP = new Set(["like", "likes", "prefer", "prefers", "often", "order", "orders", "food", "the", "and", "with", "dislikes"]);
+      const words = s => String(s).split(/\s+/).filter(w => w.length > 2 && !STOP.has(w.toLowerCase())).map(w => new RegExp(`\\b${w.replace(/s$/, "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\w*`, "i"));
+      const said = x => new RegExp(`\\b${term(x)}`, "i").test(this.text);
       const chips = [];
-      if (c.dish_query) chips.push(["dish", c.dish_query, /noodle|spicy|dumpling|soup|tofu|chicken/i]);
-      if (c.cuisine) chips.push(["cuisine", c.cuisine, new RegExp(c.cuisine, "i")]);
-      if (c.people) chips.push(["people", c.people, /for (two|one|three|four|\d+)|\b\d+ people/i]);
-      if (c.budget_total) chips.push(["budget", money(c.budget_total), /under \$?\d+|\$\d+/i]);
-      if (c.max_eta_min) chips.push(["max time", c.max_eta_min + " min", /\d+ ?min(ute)?s?/i]);
-      (c.soft_prefs || []).forEach(x => chips.push(["prefers", x, new RegExp(x.replace(/s$/, ""), "i")]));
+      if (c.dish_query) chips.push({ k: "dish", v: c.dish_query, res: words(c.dish_query), color: MK.y });
+      if (c.cuisine) chips.push({ k: "cuisine", v: c.cuisine, res: [new RegExp(`\\b${c.cuisine}\\w*`, "i")], color: MK.o });
+      if (c.people) chips.push({ k: "people", v: c.people, res: [/for (two|one|three|four|five|six|\d+)\b|\b(two|\d+) (people|of us)\b/i], color: MK.b });
+      if (c.budget_total) chips.push({ k: "budget", v: money(c.budget_total), res: [/(under|below|less than|max(imum)?|up to)?\s?\$\s?\d+(\.\d+)?/i], color: MK.g });
+      if (c.max_eta_min) chips.push({ k: "max time", v: c.max_eta_min + " min", res: [/(within|in|under)?\s?\d+\s?(min(ute)?s?|hours?)/i], color: MK.v });
+      // soft preferences: the ones in the sentence fly in; the rest came from memory and share one box
+      const dishWords = new Set(String(c.dish_query || "").toLowerCase().split(/\s+/).map(term));
+      const spoken = [], remembered = [];
+      [...new Set(c.soft_prefs || [])].forEach(x => {
+        if (said(x) && !String(x).includes(" ")) { if (!dishWords.has(term(x))) spoken.push(x); } else remembered.push(x);
+      });
+      spoken.forEach(x => chips.push({ k: "prefers", v: x, res: words(x), color: MK.p }));
+      if (remembered.length) chips.push({ k: "taste, from memory", v: remembered.join(" · "), res: [], color: MK.v, note: "recalled in step 1", cls: "memchip" });
       const rules = {}; (c.hard_excludes || []).forEach(x => { const t = term(x); if (!rules[t]) rules[t] = x.replace(/^(dislikes|no|never)\s+/i, ""); });
-      Object.entries(rules).forEach(([t, x]) => chips.push(["never", x, new RegExp(t, "i"), "rule", fromMem.has(t) ? (fresh.has(t) ? "you said it · also in memory" : "from memory") : "new rule → saved"]));
-      const req = $(".req", this.p), box = $(".chips", this.p);
-      for (const [k, v, re, cls, note] of chips) {
-        const ch = el(`<div class="cchip ${cls || ""}"><small>${esc(k)}</small><b>${esc(v)}</b>${note ? `<em>${esc(note)}</em>` : ""}</div>`);
-        box.appendChild(ch); await sleep(30); ch.classList.add("in");
-        if (re && this.text) { const html = req.innerHTML; const m = req.textContent.match(re);
-          if (m && !html.includes(`<mark>${esc(m[0])}</mark>`)) req.innerHTML = html.replace(esc(m[0]), `<mark>${esc(m[0])}</mark>`); }
-        await sleep(260);
+      Object.entries(rules).forEach(([t, x]) => { const sp = said(t), mem = fromMem.has(t) || !fresh.has(t) && !sp;
+        chips.push({ k: "never", v: x, res: sp ? [new RegExp(`\\b${t}\\w*`, "i")] : [], color: MK.r, cls: "rule",
+          note: sp ? (mem ? "you said it · also in memory" : "new rule → saved") : "from memory" }); });
+      // empty boxes first, waiting to be filled
+      const box = $(".chips", this.p); box.innerHTML = "";
+      chips.forEach(ch => { ch.el = el(`<div class="cchip wait ${ch.cls || ""}" style="--mk:${ch.color}"><small>${esc(ch.k)}</small><b>&nbsp;</b>${ch.note ? `<em>${esc(ch.note)}</em>` : ""}</div>`); box.appendChild(ch.el); });
+      await sleep(350);
+      let id = 0;
+      for (const ch of chips) {
+        let flew = false;
+        for (const re of ch.res) {
+          const m = this.find(re); if (!m) continue;
+          const r = { ...m, id: ++id, color: ch.color, rot: (Math.random() * 3 - 1.5).toFixed(2), t: (0.05 + Math.random() * .2).toFixed(2),
+                      b: (-0.05 + Math.random() * .15).toFixed(2), l: Math.round(-3 - Math.random() * 4), r: Math.round(-2 - Math.random() * 5) };
+          this.ranges.push(r); this.paint(r);
+          await sleep(420);
+          await this.fly($(`.hl[data-i="${r.id}"]`, this.p), ch.el.querySelector("b"), ch.color);
+          flew = true;
+        }
+        ch.el.querySelector("b").textContent = ch.v;
+        ch.el.classList.remove("wait"); ch.el.classList.add("in");
+        await sleep(flew ? 160 : 260);
       }
     },
   },
