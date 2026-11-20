@@ -47,6 +47,24 @@ def test_restaurant_first_rejects_other_branch():
     assert restaurant_similarity(a, b) == 0.0
 
 
+def test_different_main_ingredients_never_match():
+    from data.match import main_ingredient_conflict
+    def o(item):
+        return c.Offer(restaurant="Z", item=item, price=20, source="ubereats")
+    assert main_ingredient_conflict(o("Shrimp Chow Mein"), o("Beef Chow Mein"))
+    assert main_ingredient_conflict(o("Cumin Beef"), o("Cumin Lamb"))
+    assert not main_ingredient_conflict(o("Szechuan Spicy Beef Noodle Soup"), o("Sichuan Beef Noodles — Hot"))
+    assert not main_ingredient_conflict(o("Dan Dan Noodles"), o("Dan Dan Noodle & Minced Pork"))
+
+
+def test_sibling_restaurants_do_not_match():
+    def o(name, addr=""):
+        return c.Offer(restaurant=name, restaurant_address=addr, item="x", price=1, source="ubereats")
+    assert restaurant_similarity(o("Z&Y Restaurant"), o("Z & Y Peking Duck")) < 0.85
+    assert restaurant_similarity(o("Z&Y Restaurant"), o("Z & Y Restaurant")) == 1.0
+    assert restaurant_similarity(o("Shanghai China Restaurant (1559 Mission St)"), o("Shanghai China Restaurant")) == 1.0
+
+
 def test_match_node_writes_inference_citing_evidence(mem):
     state = scraped_state("r4")
     out = nodes.match_offers(state)

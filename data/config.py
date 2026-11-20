@@ -21,10 +21,33 @@ def env_list(name: str) -> list[str]:
 
 
 SIE_BASE_URL = env("SIE_BASE_URL", "https://api.superlinked.com").rstrip("/")
-SIE_EMBED_MODEL = env("SIE_EMBED_MODEL", "Qwen/Qwen3-Embedding-4B")
+# Embeddings: the Brief picked Qwen/Qwen3-Embedding-4B (2560 dims), but on 2026-11-20 it sat in
+# SIE PROVISIONING for 15+ minutes. tencent/R3-embedding-0.6b answers in <1 s. To switch back,
+# set SIE_EMBED_MODEL=Qwen/Qwen3-Embedding-4B and EMBED_DIM=2560, then run data.setup_db.
+SIE_EMBED_MODEL = env("SIE_EMBED_MODEL", "tencent/R3-embedding-0.6b")
 SIE_RERANK_MODEL = env("SIE_RERANK_MODEL", "Qwen/Qwen3-Reranker-4B")
 SIE_COGNEE_MODEL = env("SIE_COGNEE_MODEL", "zai-org/GLM-5.3-Flash")
-EMBED_DIM = int(env("EMBED_DIM", "2560"))
+EMBED_DIM = int(env("EMBED_DIM", "1024"))
+
+# Demo stores: 5 San Francisco Sichuan/Chinese restaurants listed on both platforms, so
+# match_offers has real pairs. Used when UBEREATS_STORE_URLS / DOORDASH_STORE_URLS are unset.
+# (The Uber Eats Actor's city mode finds no US restaurants, so it needs store URLs.)
+DEMO_STORES = {
+    "ubereats": [
+        "https://www.ubereats.com/store/z&y-restaurant/4bIAq_kBSn6FuGWMkMHjdw",
+        "https://www.ubereats.com/store/z-&-y-peking-duck/IOWfqXENQs6KBQCjL4S-fQ",
+        "https://www.ubereats.com/store/spices/lszSibfTSlu-uoUiB1g2aA",
+        "https://www.ubereats.com/store/china-live/nIGcpTenQ4iZEeDXLEHtbw",
+        "https://www.ubereats.com/store/sichuan-home/aMer0uP0SIuU5kR76h5Z_A",
+    ],
+    "doordash": [
+        "https://www.doordash.com/store/z-&-y-restaurant-san-francisco-768793/",
+        "https://www.doordash.com/store/z-&-y-peking-duck-san-francisco-682066/",
+        "https://www.doordash.com/store/spices-san-francisco-8150",
+        "https://www.doordash.com/store/china-live-san-francisco-102102/",
+        "https://www.doordash.com/store/sichuan-home-san-francisco-78137/",
+    ],
+}
 
 UBEREATS_ACTOR = env("UBEREATS_ACTOR", "corent1robert/uber-eats-menu-scraper")
 DOORDASH_ACTOR = env("DOORDASH_ACTOR", "haketa/doordash-scraper")

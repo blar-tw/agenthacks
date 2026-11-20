@@ -27,6 +27,8 @@ from data.sie import get_sie
 tools.register()
 store.install()
 
+NODE_SIE_WAIT_S = 10.0   # in the graph, wait at most this long on SIE 503/429, then take the fallback
+
 
 def _run(state: AgentState) -> str:
     return state.get("run_id") or "no-run"
@@ -109,7 +111,17 @@ def load_memory(state: AgentState) -> dict[str, Any]:
                               "preferences": [{k: p.get(k) for k in ("text", "confidence", "episode_ids")}
                                               for p in learned]},
                 [ev], run_id=run, node="load_memory")
-    return {"memory": _jsonable({"orders": orders, "rules": rules, "soft_prefs": soft, "rejections": rejections})}
+    # P1's memory shape (agent/default_nodes.py): hard_rules and soft_prefs are plain text lists,
+    # plus the evidence_id parse_request cites. P2's richer rows ride along in extra keys.
+    return {"memory": _jsonable({
+        "orders": orders,
+        "hard_rules": [r.get("text") for r in rules if r.get("text")],
+        "soft_prefs": [p.get("text") for p in soft if p.get("text")],
+        "evidence_id": ev,
+        "rules": rules,            # hard rules with their normalized term ("mushroom")
+        "learned": learned,        # learned preferences with confidence and episode IDs
+        "rejections": rejections,
+    })}
 
 
 def save_stated_rule(user_id: str, text: str, kind: str = "hard", run_id: str | None = None) -> str:
@@ -167,13 +179,13 @@ def normalize(state: AgentState) -> dict[str, Any]:
     run = _run(state)
     offers = dedupe(_offers(state))
     new = [o for o in offers if not o.evidence_id]
-    for o in new:
-        o.evidence_id = c.audit("evidence", {"platform": o.source, "restaurant": o.restaurant, "item": o.item,
-                                             "price": o.price, "fees": o.fees,
-                                             "fees_known": o.offer_id not in UNKNOWN_FEES,
-                                             "eta_min": o.eta_min, "scraped_at": o.scraped_at.isoformat(),
-                                             "offer_id": o.offer_id},
-                                run_id=run, node="normalize", source_url=o.url or None)
+    ids = store.audit_many("evidence", [
+        ({"platform": o.source, "restaurant": o.restaurant, "item": o.item, "price": o.price, "fees": o.fees,
+          "fees_known": o.offer_id not in UNKNOWN_FEES, "eta_min": o.eta_min,
+          "scraped_at": o.scraped_at.isoformat(), "offer_id": o.offer_id}, [], o.url or None) for o in new],
+        run_id=run, node="normalize")
+    for o, eid in zip(new, ids):
+        o.evidence_id = eid
     store.write_snapshots(run, new)
     return {"offers": [o.model_dump(mode="json") for o in offers]}
 
@@ -186,9 +198,10 @@ def match_offers(state: AgentState) -> dict[str, Any]:
     matches, method = [], "fuzzy"
     if sie is not None:
         try:
-            vecs = dict(zip([o.offer_id for o in offers], sie.embed([dish_text(o) for o in offers])))
+            vecs = dict(zip([o.offer_id for o in offers],
+                            sie.embed([dish_text(o) for o in offers], max_wait_s=NODE_SIE_WAIT_S)))
             matches, method = _match(offers, sie, vecs)
-            store.set_snapshot_vectors(vecs)
+            store.set_snapshot_vectors(vecs, run)
         except Exception as exc:
             note = f"SIE embeddings failed ({type(exc).__name__}); used fuzzy names"
     else:
@@ -196,12 +209,11 @@ def match_offers(state: AgentState) -> dict[str, Any]:
     if note:
         matches, method = _match(offers, None)
     by_id = {o.offer_id: o for o in offers}
-    for m in matches:
-        a, b = (by_id[i] for i in m.offer_ids)
-        c.audit("inference", {"what": "same dish on both platforms", "restaurant": a.restaurant,
-                              "ubereats_item": a.item, "doordash_item": b.item, "confidence": m.confidence,
-                              "method": method, "match_id": m.match_id},
-                m.evidence_ids, run_id=run, node="match_offers")
+    pairs = [(by_id[m.offer_ids[0]], by_id[m.offer_ids[1]], m) for m in matches]
+    store.audit_many("inference", [
+        ({"what": "same dish on both platforms", "restaurant": a.restaurant, "ubereats_item": a.item,
+          "doordash_item": b.item, "confidence": m.confidence, "method": method, "match_id": m.match_id},
+         m.evidence_ids, None) for a, b, m in pairs], run_id=run, node="match_offers")
     if note:
         c.audit("inference", {"what": "matching fallback", "note": note, "matches": len(matches)},
                 [o.evidence_id for o in offers if o.evidence_id], run_id=run, node="match_offers")
@@ -234,7 +246,7 @@ def filter_rank(state: AgentState, top_k: int = 10) -> dict[str, Any]:
                     run_id=run, node="filter_rank")
         else:
             try:
-                ranked, used = rank_reranker(fr.kept, cons, mem, scorer, bad), "reranker"
+                ranked, used = rank_reranker(fr.kept, cons, mem, scorer, bad, max_wait_s=NODE_SIE_WAIT_S), "reranker"
             except Exception as exc:
                 c.audit("inference", {"what": "reranker failed; price-only ranker used",
                                       "error": type(exc).__name__}, all_ev, run_id=run, node="filter_rank")

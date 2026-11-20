@@ -98,9 +98,17 @@ def est_total(o: Offer, people: int) -> float:
     return round(o.price * max(people, 1) + (o.fees or 0.0), 2)
 
 
+def _text(p) -> str:
+    return p if isinstance(p, str) else (p or {}).get("text", "")
+
+
 def hard_terms(c: Constraints, memory: dict | None) -> list[str]:
-    rules = [r for r in (memory or {}).get("rules", []) if r.get("kind", "hard") == "hard"]
-    return sorted({term_of(x) for x in c.hard_excludes} | {r.get("term") or term_of(r.get("text", "")) for r in rules})
+    """Hard rules from the request plus memory: P1's hard_rules (text) and P2's rules (with term)."""
+    mem = memory or {}
+    rules = [r for r in mem.get("rules", []) if r.get("kind", "hard") == "hard"]
+    terms = {term_of(x) for x in c.hard_excludes} | {term_of(_text(x)) for x in mem.get("hard_rules", [])}
+    terms |= {r.get("term") or term_of(r.get("text", "")) for r in rules}
+    return sorted(t for t in terms if t)
 
 
 @dataclass
@@ -169,7 +177,7 @@ def rank_price(options: list[RankedOption], people: int) -> list[RankedOption]:
 
 def rerank_query(c: Constraints, memory: dict | None) -> str:
     parts = [c.dish_query or c.raw_text or ", ".join(filter(None, [c.cuisine, *c.soft_prefs]))]
-    soft = list(c.soft_prefs) + [p.get("text", "") for p in (memory or {}).get("soft_prefs", [])]
+    soft = list(c.soft_prefs) + [_text(p) for p in (memory or {}).get("soft_prefs", [])]
     soft = [s for s in dict.fromkeys(soft) if s]
     if soft:
         parts.append("The user prefers: " + "; ".join(soft))
@@ -177,10 +185,9 @@ def rerank_query(c: Constraints, memory: dict | None) -> str:
 
 
 def rank_reranker(options: list[RankedOption], c: Constraints, memory: dict | None, scorer: Scorer,
-                  bad_restaurants: set[str] | None = None) -> list[RankedOption]:
-    scores = scorer.score(rerank_query(c, memory),
-                          {r.offer.offer_id: f"{r.offer.item}: {r.offer.description} ({r.offer.restaurant})"
-                           for r in options})
+                  bad_restaurants: set[str] | None = None, max_wait_s: float = 90.0) -> list[RankedOption]:
+    items = {r.offer.offer_id: f"{r.offer.item}: {r.offer.description} ({r.offer.restaurant})" for r in options}
+    scores = scorer.score(rerank_query(c, memory), items, max_wait_s=max_wait_s)
     bad = {x.lower() for x in (bad_restaurants or set())}
     for i in (memory or {}).get("rejections", []):
         bad |= {x.lower() for x in i.get("rejected_restaurants", [])}

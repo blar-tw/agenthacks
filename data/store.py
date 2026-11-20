@@ -12,6 +12,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import threading
 from datetime import datetime, timezone
 from typing import Any, Iterable
 
@@ -77,7 +78,7 @@ class P2MemoryStore(c.InMemoryStore):
     def write_matches(self, run_id: str, matches: Iterable[dict]) -> None:
         self.match_rows.extend({**m, "run_id": run_id} for m in matches)
 
-    def set_snapshot_vectors(self, vectors: dict[str, list[float]]) -> None:
+    def set_snapshot_vectors(self, vectors: dict[str, list[float]], run_id: str | None = None) -> None:
         self.vectors.update(vectors)
 
 
@@ -114,6 +115,9 @@ def schema_statements() -> list[str]:
     return [s.strip() for s in body.split(";") if s.strip()]
 
 
+VECTOR_COLUMNS = (("preferences", "vec"), ("price_snapshots", "dish_vec"))
+
+
 def create_tables(conn) -> list[str]:
     with conn.cursor() as cur:
         for stmt in schema_statements():
@@ -121,25 +125,98 @@ def create_tables(conn) -> list[str]:
     return list(TABLES)
 
 
+def migrate(conn) -> list[str]:
+    """Bring tables created by an older schema up to date. Copies data; never drops rows."""
+    done = []
+    with conn.cursor() as cur:
+        # price_snapshots: PRIMARY KEY offer_id -> (offer_id, run_id), for stable offer ids.
+        cur.execute("SELECT COLUMN_NAME FROM information_schema.KEY_COLUMN_USAGE WHERE TABLE_SCHEMA = DATABASE() "
+                    "AND TABLE_NAME = 'price_snapshots' AND CONSTRAINT_NAME = 'PRIMARY'")
+        pk = [r["COLUMN_NAME"] for r in cur.fetchall()]
+        if pk == ["offer_id"]:
+            stmt = next(s for s in schema_statements() if "price_snapshots" in s.split("(")[0])
+            cur.execute("DROP TABLE IF EXISTS price_snapshots_v2")
+            cur.execute(stmt.replace("price_snapshots", "price_snapshots_v2", 1))
+            cols = ("offer_id, source, restaurant, restaurant_address, item, description, price, fees, eta_min, url, "
+                    "scraped_at, evidence_id, dish_vec")
+            cur.execute(f"INSERT INTO price_snapshots_v2 (run_id, {cols}) "
+                        f"SELECT COALESCE(run_id, ''), {cols} FROM price_snapshots")
+            cur.execute("DROP TABLE price_snapshots")
+            cur.execute("ALTER TABLE price_snapshots_v2 RENAME TO price_snapshots")
+            done.append("price_snapshots: primary key (offer_id) -> (offer_id, run_id), rows copied")
+        cur.execute("SELECT CHARACTER_MAXIMUM_LENGTH AS n FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() "
+                    "AND TABLE_NAME = 'interactions' AND COLUMN_NAME = 'selected'")
+        row = cur.fetchone()
+        if row and (row["n"] or 0) < 255:
+            cur.execute("ALTER TABLE interactions MODIFY selected VARCHAR(255)")
+            done.append("interactions.selected: VARCHAR(255)")
+    return done
+
+
+def ensure_vector_dims(conn) -> list[str]:
+    """Rebuild a vector column whose size differs from EMBED_DIM (after an embedding-model switch).
+    Old vectors from another model can't be compared with new ones, so they are dropped."""
+    want = f"vector({config.EMBED_DIM}"
+    changed = []
+    with conn.cursor() as cur:
+        for table, col in VECTOR_COLUMNS:
+            cur.execute("SELECT COLUMN_TYPE FROM information_schema.COLUMNS "
+                        "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s AND COLUMN_NAME = %s", (table, col))
+            row = cur.fetchone()
+            if row and not str(row["COLUMN_TYPE"]).lower().startswith(want):
+                cur.execute(f"ALTER TABLE {table} DROP COLUMN {col}")
+                cur.execute(f"ALTER TABLE {table} ADD COLUMN {col} VECTOR({config.EMBED_DIM})")
+                changed.append(f"{table}.{col}: {row['COLUMN_TYPE']} -> VECTOR({config.EMBED_DIM})")
+    return changed
+
+
 class SingleStoreStore:
+    """One pymysql connection, shared behind a lock: the background distiller thread and the graph
+    both write, and a pymysql connection used by two threads at once corrupts its packet stream."""
+
     def __init__(self, conn=None) -> None:
         self.conn = conn or connect()
+        self._lock = threading.RLock()
+
+    def _run(self, fn):
+        with self._lock:
+            try:
+                return fn()
+            except Exception as exc:   # dropped connection: reconnect once and retry
+                if type(exc).__name__ not in ("OperationalError", "InterfaceError") or not hasattr(self.conn, "ping"):
+                    raise
+                self.conn.ping(reconnect=True)
+                return fn()
 
     def _exec(self, sql: str, args: Any = None, many: bool = False) -> None:
-        with self.conn.cursor() as cur:
-            (cur.executemany if many else cur.execute)(sql, args)
+        def go():
+            with self.conn.cursor() as cur:
+                (cur.executemany if many else cur.execute)(sql, args)
+        self._run(go)
 
     def _rows(self, sql: str, args: Any = None) -> list[dict]:
-        with self.conn.cursor() as cur:
-            cur.execute(sql, args)
-            return list(cur.fetchall())
+        def go():
+            with self.conn.cursor() as cur:
+                cur.execute(sql, args)
+                return list(cur.fetchall())
+        return self._run(go)
 
     # audit
+    _AUDIT_SQL = ("INSERT INTO audit_events (event_id, run_id, node, ts, kind, source_url, actor_run_id, payload, "
+                  "evidence_ids, hash) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)")
+
+    @staticmethod
+    def _audit_row(e: c.AuditEvent) -> tuple:
+        return (e.event_id, e.run_id, e.node, _naive(e.ts), e.kind, e.source_url, e.actor_run_id,
+                _j(e.payload), _j(e.evidence_ids), audit_hash(e))
+
     def add_audit(self, e: c.AuditEvent) -> None:
-        self._exec("INSERT INTO audit_events (event_id, run_id, node, ts, kind, source_url, actor_run_id, payload, "
-                   "evidence_ids, hash) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
-                   (e.event_id, e.run_id, e.node, _naive(e.ts), e.kind, e.source_url, e.actor_run_id,
-                    _j(e.payload), _j(e.evidence_ids), audit_hash(e)))
+        self._exec(self._AUDIT_SQL, self._audit_row(e))
+
+    def add_audits(self, events: list[c.AuditEvent]) -> None:
+        """One multi-row INSERT: 600 evidence events in one round trip, not 600."""
+        for i in range(0, len(events), 500):
+            self._exec(self._AUDIT_SQL, [self._audit_row(e) for e in events[i:i + 500]], many=True)
 
     def get_audit(self, run_id: str) -> list[c.AuditEvent]:
         out = []
@@ -245,9 +322,21 @@ class SingleStoreStore:
                    [(m["match_id"], run_id, _j(m["offer_ids"]), m["confidence"], m.get("method"),
                      _j(m.get("evidence_ids", [])), _naive(c.now())) for m in matches], many=True)
 
-    def set_snapshot_vectors(self, vectors: dict[str, list[float]]) -> None:
-        self._exec("UPDATE price_snapshots SET dish_vec=%s WHERE offer_id=%s",
-                   [(json.dumps([round(float(x), 6) for x in v]), k) for k, v in vectors.items()], many=True)
+    def set_snapshot_vectors(self, vectors: dict[str, list[float]], run_id: str | None = None) -> None:
+        """One UPDATE ... CASE per 100 rows: pymysql's executemany batches only INSERT/REPLACE,
+        so a plain UPDATE per row cost ~80 ms each (617 rows: 50 s). Only this run's snapshots."""
+        run = run_id or c._AUDIT_CTX.get()[0]
+        items = list(vectors.items())
+        for i in range(0, len(items), 100):
+            chunk = items[i:i + 100]
+            cases = " ".join("WHEN %s THEN %s" for _ in chunk)
+            args: list = []
+            for k, v in chunk:
+                args += [k, json.dumps([round(float(x), 6) for x in v])]
+            args += [k for k, _ in chunk] + [run]
+            marks = ",".join(["%s"] * len(chunk))
+            self._exec(f"UPDATE price_snapshots SET dish_vec = CASE offer_id {cases} END "
+                       f"WHERE offer_id IN ({marks}) AND run_id = %s", args)
 
 
 # ---------------------------------------------------------------- helpers (work on any MemoryStore)
@@ -268,6 +357,20 @@ def set_last_distilled(user_id: str, at: datetime) -> None:
         _BOOKMARKS[user_id] = at
 
 
+def audit_many(kind: str, items: list[tuple[dict, list[str], str | None]], *, run_id: str, node: str) -> list[str]:
+    """Batch version of contracts.audit: items are (payload, evidence_ids, source_url).
+    Same event shape and scrubbing as contracts.audit; one write for the whole batch."""
+    events = [c.AuditEvent(run_id=run_id, node=node, kind=kind, payload=c.scrub(p), evidence_ids=list(ev),
+                           source_url=url) for p, ev, url in items]
+    s = c.get_store()
+    if hasattr(s, "add_audits"):
+        s.add_audits(events)
+    else:
+        for e in events:
+            s.add_audit(e)
+    return [e.event_id for e in events]
+
+
 def write_snapshots(run_id: str, offers: list[c.Offer]) -> None:
     s = c.get_store()
     if hasattr(s, "write_price_snapshots"):
@@ -283,10 +386,10 @@ def write_matches(run_id: str, matches: list[dict]) -> None:
         s.write_matches(run_id, matches)
 
 
-def set_snapshot_vectors(vectors: dict[str, list[float]]) -> None:
+def set_snapshot_vectors(vectors: dict[str, list[float]], run_id: str | None = None) -> None:
     s = c.get_store()
     if vectors and hasattr(s, "set_snapshot_vectors"):
-        s.set_snapshot_vectors(vectors)
+        s.set_snapshot_vectors(vectors, run_id)
 
 
 def install() -> None:

@@ -48,8 +48,12 @@ def test_load_memory_reads_orders_rules_and_learned(mem):
     seed()
     m = nodes.load_memory({"run_id": "r11", "user_id": "demo", "request_text": "spicy noodles"})["memory"]
     assert len(m["orders"]) == 5 and m["orders"][0]["order_id"] == "ord-23"
+    # P1's shape: plain text lists plus the evidence id parse_request cites
+    assert m["hard_rules"] == ["dislikes mushrooms"] and "likes spicy noodles" in m["soft_prefs"]
+    assert all(isinstance(x, str) for x in m["soft_prefs"]) and m["evidence_id"]
+    # P2's extra keys
     assert [r["term"] for r in m["rules"]] == ["mushroom"]
-    assert any(p["text"] == "likes spicy noodles" for p in m["soft_prefs"])
+    assert any(p["episode_ids"] == ["ord-12", "ord-15", "ord-19", "ord-21"] for p in m["learned"])
     assert m["rejections"][0]["reason"] == "too oily"
     ev = c.get_audit("r11")
     assert [e.kind for e in ev] == ["evidence", "inference"] and ev[1].evidence_ids == [ev[0].event_id]

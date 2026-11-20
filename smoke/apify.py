@@ -14,7 +14,7 @@ from _common import Smoke
 from contracts import Offer
 from data import actors, config
 from data.actors import PLATFORMS
-from data.normalize import offers_from_result
+from data.normalize import UNKNOWN_FEES, offers_from_result
 
 s = Smoke("apify")
 manifest = json.loads((config.FIXTURES / "manifest.json").read_text(encoding="utf-8"))
@@ -44,7 +44,7 @@ if "--live" in sys.argv and s.need("APIFY_TOKEN"):
             if r.items:
                 s.info(f"{p} first item keys: {sorted(r.items[0].keys())[:20]}")
         else:
-            fees = sum(o.fees is not None for o in offers)
+            fees = sum(o.offer_id not in UNKNOWN_FEES for o in offers)
             eta = sum(o.eta_min is not None for o in offers)
             s.ok(f"{p}: {len(r.items)} rows -> {len(offers)} Offers; fees on {fees}, ETA on {eta}; run {r.actor_run_id}")
             if "--save" in sys.argv:
