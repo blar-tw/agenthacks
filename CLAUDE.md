@@ -11,14 +11,12 @@ that doesn't.
 The team's shared context layer is the MealMatch doc: https://claude.ai/artifact/LPeJdBtNwtP7MVPgqd7RAe.
 Read and write it through the Claude Docs connector.
 
-- **Read it** before you start a task, and whenever a question touches
-  the design, the database schema, an interface, or another person's folder.
-- **Write to it** when you make a decision that affects someone else:
-  a schema or interface change, a cut feature, a swapped tool or service.
-  Update the tab where that content lives so the doc stays current, and
-  add one entry to the **Decisions** tab:
-  `HH:MM · who · decision · who it affects`.
-- Record decisions in the doc and progress in git.
+- **Before you start a task, read it**: the Brief tab, and the newest
+  rows of the **Log** tab to see what your teammates changed.
+- **After you finish a task, update it**: change any part of the Brief
+  your work made out of date (schema, interfaces, nodes, cut features,
+  swapped tools), then add one row to the top of the **Log** tab:
+  `HH:MM · who · what changed · who it affects`.
 
 ## Audit trail
 
