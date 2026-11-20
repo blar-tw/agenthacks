@@ -8,6 +8,7 @@ from __future__ import annotations
 import asyncio
 import json
 from datetime import datetime, timedelta, timezone
+from decimal import Decimal
 from typing import Any, Optional
 
 from pydantic import BaseModel, Field
@@ -51,7 +52,8 @@ def actor_for(platform: Platform) -> str:
 
 def input_for(platform: Platform, city: str, store_urls: list[str] | None = None) -> dict[str, Any]:
     if store_urls is None:
-        store_urls = config.env_list("UBEREATS_STORE_URLS" if platform == "ubereats" else "DOORDASH_STORE_URLS")
+        store_urls = (config.env_list("UBEREATS_STORE_URLS" if platform == "ubereats" else "DOORDASH_STORE_URLS")
+                      or config.DEMO_STORES[platform])
     return ubereats_input(city, store_urls) if platform == "ubereats" else doordash_input(city, store_urls)
 
 
@@ -66,7 +68,8 @@ async def run_actor(platform: Platform, run_input: dict[str, Any], timeout_s: in
 
     async def _go() -> SearchResult:
         run = await client.actor(actor_for(platform)).call(
-            run_input=run_input, run_timeout=timedelta(seconds=timeout_s), wait_duration=timedelta(seconds=timeout_s))
+            run_input=run_input, run_timeout=timedelta(seconds=timeout_s), wait_duration=timedelta(seconds=timeout_s),
+            max_total_charge_usd=Decimal(config.env("APIFY_MAX_USD", "2")))   # spend cap per Actor run
         if run is None:
             return SearchResult(platform=platform, scraped_at=started, error="Actor run did not start")
         status = str(getattr(run, "status", "")).upper()

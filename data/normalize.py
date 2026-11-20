@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import hashlib
+import html
 import re
 from datetime import datetime
 from typing import Any, Iterable
@@ -41,6 +42,11 @@ def parse_minutes(v: Any) -> int | None:
     return max(nums) if nums else None
 
 
+def _text(v: Any) -> str:
+    """Uber Eats names come HTML-escaped ("Z&amp;Y Restaurant")."""
+    return html.unescape(str(v or "")).strip()
+
+
 def _first(d: dict[str, Any], *keys: str) -> Any:
     for k in keys:
         v = d.get(k)
@@ -76,10 +82,10 @@ def _offer(res: SearchResult, store: dict[str, Any], item: dict[str, Any]) -> Of
     fees = parse_money(_first(store, "deliveryFee", "delivery_fee", "fees"))
     o = Offer(
         offer_id=offer_id(res.platform, store_key, str(name), scraped),
-        restaurant=str(restaurant).strip(),
-        restaurant_address=str(_first(store, "address", "restaurant_address", "storeAddress") or ""),
-        item=str(name).strip(),
-        description=str(_first(item, "description") or "").strip(),
+        restaurant=_text(restaurant),
+        restaurant_address=_text(_first(store, "address", "restaurant_address", "storeAddress")),
+        item=_text(name),
+        description=_text(_first(item, "description")),
         price=price,
         fees=fees if fees is not None else 0.0,
         eta_min=parse_minutes(_first(store, "etaMinutes", "eta_min", "eta", "etaRange")),

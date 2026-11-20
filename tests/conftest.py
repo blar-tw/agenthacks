@@ -4,6 +4,7 @@ from __future__ import annotations
 import hashlib
 import math
 import re
+from pathlib import Path
 
 import pytest
 
@@ -38,8 +39,13 @@ class FakeSIE:
         return {k: len(q & set(_tokens(v))) / (len(q) or 1) for k, v in items.items()}
 
 
+TEST_FIXTURES = Path(__file__).resolve().parent / "fixtures"   # hand-made; data/fixtures holds real runs
+
+
 @pytest.fixture(autouse=True)
 def offline(monkeypatch):
+    from data import config
+    monkeypatch.setattr(config, "FIXTURES", TEST_FIXTURES)
     monkeypatch.setenv("TOOL_MODE", "fixtures")
     monkeypatch.setenv("DISTILLER", "counting")
     monkeypatch.setenv("RANKER", "reranker")

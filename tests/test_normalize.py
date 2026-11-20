@@ -28,6 +28,13 @@ def test_fixtures_parse_into_contract_offers():
     assert [o.offer_id for o in offers_from_result(actors.load_fixture("doordash"))] == [o.offer_id for o in dd]
 
 
+def test_html_entities_are_decoded():
+    res = actors.SearchResult(platform="ubereats", scraped_at="2026-11-20T12:00:00+00:00", items=[
+        {"storeName": "Z &amp; Y Peking Duck", "itemName": "Fish &amp; Chili", "price": 20}])
+    (o,) = offers_from_result(res)
+    assert o.restaurant == "Z & Y Peking Duck" and o.item == "Fish & Chili"
+
+
 def test_failed_platform_gives_no_offers():
     res = actors.load_fixture("doordash").model_copy(update={"error": "timed out"})
     assert offers_from_result(res) == []

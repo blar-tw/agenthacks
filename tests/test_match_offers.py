@@ -47,6 +47,14 @@ def test_restaurant_first_rejects_other_branch():
     assert restaurant_similarity(a, b) == 0.0
 
 
+def test_sibling_restaurants_do_not_match():
+    def o(name, addr=""):
+        return c.Offer(restaurant=name, restaurant_address=addr, item="x", price=1, source="ubereats")
+    assert restaurant_similarity(o("Z&Y Restaurant"), o("Z & Y Peking Duck")) < 0.85
+    assert restaurant_similarity(o("Z&Y Restaurant"), o("Z & Y Restaurant")) == 1.0
+    assert restaurant_similarity(o("Shanghai China Restaurant (1559 Mission St)"), o("Shanghai China Restaurant")) == 1.0
+
+
 def test_match_node_writes_inference_citing_evidence(mem):
     state = scraped_state("r4")
     out = nodes.match_offers(state)

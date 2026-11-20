@@ -26,7 +26,7 @@ MAX_PRICE_RATIO = 1.5
 
 
 def norm(s: str) -> str:
-    s = s.lower()
+    s = re.sub(r"\([^)]*\)", " ", s.lower())    # "(1559 Mission St)", "(sf)"
     for a, b in _SYN.items():
         s = s.replace(a, b)
     s = re.sub(r"[^a-z0-9 ]+", " ", s)
@@ -39,7 +39,9 @@ def _street_no(addr: str | None) -> str | None:
 
 
 def restaurant_similarity(a: Offer, b: Offer) -> float:
-    name = fuzz.token_set_ratio(norm(a.restaurant), norm(b.restaurant)) / 100
+    # token_sort, not token_set: a subset scores 100 under token_set, so "Z & Y Restaurant"
+    # (-> "z and y") would equal "Z & Y Peking Duck".
+    name = fuzz.token_sort_ratio(norm(a.restaurant), norm(b.restaurant)) / 100
     na, nb = _street_no(a.restaurant_address), _street_no(b.restaurant_address)
     if na and nb and na != nb:
         return 0.0          # same name, different branch
