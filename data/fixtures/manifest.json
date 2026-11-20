@@ -4,13 +4,24 @@
     "actor": "corent1robert/uber-eats-menu-scraper",
     "actor_run_id": "C9CJ8htdzT5rYhQUT",
     "scraped_at": "2026-11-20T20:52:04.664054+00:00",
-    "items": 499
+    "items": 1167,
+    "extra_url_run": {
+      "actor_run_id": "Xp6ksaHzOXUJeTdJa",
+      "scraped_at": "2026-11-20T23:19:50.123287+00:00",
+      "stores_added": 9
+    }
   },
   "doordash": {
     "synthetic": false,
     "actor": "haketa/doordash-scraper",
     "actor_run_id": "mrRGtDbt9JqZEn0lc",
     "scraped_at": "2026-11-20T20:52:04.711066+00:00",
-    "items": 5
+    "items": 24,
+    "extra_location_run": {
+      "actor_run_id": "tWpFYgjwdgs4BrwsT",
+      "scraped_at": "2026-11-20T23:05:03.183619+00:00",
+      "location": "Chinatown, San Francisco, CA",
+      "stores_added": 19
+    }
   }
 }

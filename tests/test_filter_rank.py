@@ -93,3 +93,14 @@ def test_reranker_failure_falls_back_to_price(mem):
     out = nodes.filter_rank(state)
     assert out["ranker"] == "price"
     assert any(e.payload.get("what") == "reranker failed; price-only ranker used" for e in c.get_audit("r10"))
+
+
+def test_mix_platforms_puts_the_other_app_at_number_3():
+    from data.nodes import mix_platforms
+    def r(i, src):
+        return c.RankedOption(offer=c.Offer(offer_id=i, restaurant="x", item=i, price=1, source=src), score=1, ranker="reranker")
+    ranked = [r("a", "ubereats"), r("b", "ubereats"), r("c", "ubereats"), r("d", "ubereats"), r("e", "doordash")]
+    out, pick = mix_platforms(ranked, 3)
+    assert [x.offer.offer_id for x in out] == ["a", "b", "e", "c", "d"] and pick.offer.offer_id == "e"
+    same, none = mix_platforms(ranked[:4], 3)
+    assert none is None and same == ranked[:4]
