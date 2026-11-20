@@ -51,27 +51,27 @@ The same 6 requests went through both rankers on real menus: 5 San Francisco Sic
 
 | Request | Ranker | Top pick | Avg total, top 3 | Matches request | Matches learned prefs | Rule breaks |
 | --- | --- | --- | --- | --- | --- | --- |
-| Spicy Chinese noodles for two, under $40, no mushrooms | price | House Hot Mustard 2oz (China Live) | $19.26 | 67% | 67% | 0 |
-| | reranker | Tan Tan Noodle (Z&Y Restaurant) | $31.93 | 100% | 100% | 0 |
-| Dumplings for one, under $20 | price | Pot Sticker, 6 pcs (Sichuan Home) | $12.28 | 100% | 0% | 0 |
-| | reranker | Spicy Dumpling, 6 pcs (Z & Y Peking Duck) | $15.65 | 100% | 33% | 0 |
-| Something spicy with chicken for two, under $60 | price | House Hot Mustard 2oz (China Live) | $19.26 | 50% | 67% | 0 |
-| | reranker | Spicy Chicken with Peppercorns (Z&Y Restaurant) | $45.93 | 100% | 50% | 0 |
-| Tofu dish, no pork, under $25 | price | Tofu and Preserved Eggs (Sichuan Home) | $14.95 | 100% | 33% | 0 |
-| | reranker | General Chow's Tofu (Sichuan Home) | $17.28 | 100% | 33% | 0 |
-| Soup for two, under $50, no peanuts | price | Sweet Sticky Rice Ball with Soup (Z&Y Restaurant) | $28.57 | 100% | 17% | 0 |
-| | reranker | Hot & Sour Tofu Soup (Z&Y Restaurant) | $35.95 | 100% | 83% | 0 |
-| Cheap noodles, under $15 | price | House Cold Noodle (Z&Y Restaurant) | $12.28 | 100% | 100% | 0 |
-| | reranker | House Cold Noodle (Z&Y Restaurant) | $12.28 | 100% | 100% | 0 |
+| Spicy Chinese noodles for two, under $40, no mushrooms | price | House Cold Noodle, appetizer size (Z&Y Restaurant, Uber Eats) | $21.96 | 67% | 67% | 0 |
+| | reranker | Tan Tan Noodle (Z&Y Restaurant, Uber Eats) | $31.93 | 100% | 100% | 0 |
+| Dumplings for one, under $20 | price | Pot Sticker, 6 pcs (Sichuan Home, Uber Eats) | $12.28 | 100% | 0% | 0 |
+| | reranker | Spicy Dumpling, 6 pcs (Z & Y Peking Duck, Uber Eats) | $15.65 | 100% | 33% | 0 |
+| Something spicy with chicken for two, under $60 | price | House Cold Noodle, appetizer size (Z&Y Restaurant, Uber Eats) | $21.96 | 50% | 67% | 0 |
+| | reranker | Spicy Chicken with Peppercorns (Z&Y Restaurant, Uber Eats) | $45.93 | 100% | 50% | 0 |
+| Tofu dish, no pork, under $25 | price | Tofu and Preserved Eggs (Sichuan Home, Uber Eats) | $14.95 | 100% | 33% | 0 |
+| | reranker | General Chow's Tofu (Sichuan Home, Uber Eats) | $17.28 | 100% | 33% | 0 |
+| Soup for two, under $50, no peanuts | price | Sweet Sticky Rice Ball with Soup (Z&Y Restaurant, Uber Eats) | $28.57 | 100% | 17% | 0 |
+| | reranker | Hot & Sour Soup (Spices, DoorDash) | $33.29 | 100% | 67% | 0 |
+| Cheap noodles, under $15 | price | House Cold Noodle, appetizer size (Z&Y Restaurant, Uber Eats) | $12.28 | 100% | 100% | 0 |
+| | reranker | House Cold Noodle, appetizer size (Z&Y Restaurant, Uber Eats) | $12.28 | 100% | 100% | 0 |
 
 Averaged over the 6 requests, the top 3 picks scored as follows:
 
 | Ranker | Avg total | Matches request | Matches learned prefs | Rule breaks |
 | --- | --- | --- | --- | --- |
-| price | $17.77 | 86% | 47% | 0 |
-| reranker | $26.50 | 100% | 66% | 0 |
+| price | $18.67 | 86% | 47% | 0 |
+| reranker | $26.06 | 100% | 64% | 0 |
 
-The reranker matched every request word and more of the learned preferences. The price ranker was $8.73 cheaper on average, because it picks the cheapest dish that passes the filters, and twice that was a 2 oz hot mustard for a "spicy" request. Neither ranker broke a hard rule: hard rules are filtered out before ranking.
+The reranker matched every request word and more of the learned preferences. The price ranker was $7.39 cheaper on average, because it picks the cheapest dish that passes the filters. A dish passes when it matches any one request word. So for "something spicy with chicken", the price ranker picked a cold noodle appetizer: "Sichuan" counts as spicy, and it was the cheapest. Neither ranker broke a hard rule: hard rules are filtered out before ranking.
 
 "Matches request" is the share of the request's words, with food synonyms, found in the dish name and description. "Matches learned prefs" uses the same check against the stated and learned soft preferences.
 
@@ -84,6 +84,7 @@ The reranker matched every request word and more of the learned preferences. The
 ### Known limits
 
 - With store URLs, neither platform returns a delivery fee or an ETA. Offers carry them as unknown and `verify_quote` reads the real total from the cart.
+- The DoorDash Actor returns at most 25 menu items per store, against 61 to 144 on Uber Eats. So many dishes exist only in the Uber Eats data, and most top picks come from Uber Eats. When a dish has the same price on both platforms (96 of 109 matched pairs), the option shown is the one with more verified facts, here DoorDash, which gives the store address.
 - The Brief chose Qwen3 Embedding 4B, but it was stuck provisioning on SIE, so embeddings use `tencent/R3-embedding-0.6b`. The dish-match threshold (0.83) is calibrated for R3.
 
 ## Run it

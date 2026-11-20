@@ -111,6 +111,12 @@ def violates(offer: Offer, terms: list[str]) -> str | None:
     return None
 
 
+def evidence_gaps(o: Offer) -> int:
+    """How many facts the platform did not give us: fee, ETA, store address."""
+    from data.normalize import UNKNOWN_FEES
+    return (o.offer_id in UNKNOWN_FEES) + (o.eta_min is None) + (not o.restaurant_address)
+
+
 def est_total(o: Offer, people: int) -> float:
     return round(o.price * max(people, 1) + (o.fees or 0.0), 2)
 
@@ -187,7 +193,9 @@ def filter_offers(offers: list[Offer], c: Constraints, memory: dict | None, matc
         match_id = None
         if o.offer_id in partner and partner[o.offer_id][0] in ok:
             other, match_id = ok[partner[o.offer_id][0]], partner[o.offer_id][1]
-            o = min([o, other], key=lambda x: est_total(x, c.people))   # show the cheaper platform
+            # Show the cheaper platform. On a tie (96 of 109 pairs on the real menus), show the offer
+            # with more verified facts, not whichever came first: min() used to keep Uber Eats every time.
+            o = min([o, other], key=lambda x: (est_total(x, c.people), evidence_gaps(x)))
             done.add(other.offer_id)
         done.add(o.offer_id)
         kept.append(RankedOption(offer=o, score=0.0, ranker="price", match_id=match_id))
