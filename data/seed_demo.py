@@ -1,21 +1,20 @@
 """Seed the demo user: 5 past orders, one stated hard rule, one rejection, then distill.
 
-    uv run python -m data.seed_demo                  # MEMORY_BACKEND from .env
-    MEMORY_BACKEND=singlestore uv run python -m data.seed_demo
+    uv run python -m data.seed_demo     # uses MEMORY_BACKEND from .env (singlestore for the demo)
 
 Afterwards the audit trail can show "likes spicy noodles, learned from orders #12, #15, #19, #21".
+Safe to run again: rows are keyed by fixed IDs.
 """
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 
-from contracts import Interaction, OrderRecord, Preference
-from data.store import Store, get_store
+import contracts as c
 
 DEMO_USER = "demo"
 
 
-def demo_orders(user_id: str = DEMO_USER) -> list[OrderRecord]:
+def demo_orders() -> list[dict]:
     base = datetime(2026, 10, 2, 19, 0, tzinfo=timezone.utc)
     rows = [
         ("ord-12", "doordash", "Sichuan Garden", ["Dan Dan Noodles"], 26.97, 2.99, 31, 5),
@@ -24,32 +23,37 @@ def demo_orders(user_id: str = DEMO_USER) -> list[OrderRecord]:
         ("ord-21", "ubereats", "Spicy Village", ["Chongqing Spicy Noodles"], 31.5, 2.49, 41, 4),
         ("ord-23", "doordash", "Mama Lin's Dumplings", ["Pork Soup Dumplings"], 24.5, 1.49, 27, 4),
     ]
-    return [OrderRecord(id=i, user_id=user_id, platform=p, restaurant=r, items=items, cuisine="chinese",
-                        price_paid=paid, fees=fees, eta_min=eta, rating=rating,
-                        ordered_at=base + timedelta(days=7 * n))
+    return [{"order_id": i, "platform": p, "restaurant": r, "items": items, "cuisine": "chinese",
+             "price_paid": paid, "fees": fees, "eta_min": eta, "rating": rating,
+             "ordered_at": (base + timedelta(days=7 * n)).isoformat()}
             for n, (i, p, r, items, paid, fees, eta, rating) in enumerate(rows)]
 
 
-def seed(store: Store | None = None, user_id: str = DEMO_USER) -> dict:
-    from data.nodes import run_distiller
+def seed(user_id: str = DEMO_USER) -> dict:
+    from data import nodes
 
-    store = store or get_store()
-    store.ensure_user(user_id, address_label="Home")
-    for o in demo_orders(user_id):
-        store.add_order(o)
-    store.upsert_preference(Preference(id=f"pref-{user_id}-no-mushrooms", user_id=user_id,
-                                       text="dislikes mushrooms", kind="hard", source="stated",
-                                       confidence=1.0, term="mushroom",
-                                       created_at=datetime(2026, 10, 1, tzinfo=timezone.utc)))
-    store.add_interaction(Interaction(id="int-golden-wok-1", user_id=user_id, shown=[], rejected=[],
-                                      rejected_restaurants=["Golden Wok"], reason="too oily",
-                                      at=datetime(2026, 11, 13, 19, 30, tzinfo=timezone.utc)))
-    prefs = run_distiller(user_id, run_id="seed-demo")
-    return {"orders": 5, "learned": [(p.text, p.episode_ids) for p in prefs]}
+    s = c.get_store()
+    if hasattr(s, "ensure_user"):
+        s.ensure_user(user_id, address_label="home")
+    existing = {o.get("order_id") for o in c.read_orders(user_id, 1000)}
+    for o in demo_orders():
+        if o["order_id"] not in existing:
+            c.write_order(user_id, o)
+    c.write_preference(user_id, {"pref_id": f"pref_{user_id}_no_mushrooms", "text": "dislikes mushrooms",
+                                 "kind": "hard", "source": "stated", "confidence": 1.0, "term": "mushroom",
+                                 "created_at": "2026-10-01T00:00:00+00:00"})
+    if not any(i.get("interaction_id") == "int-golden-wok-1" for i in c.read_interactions(user_id, 1000)):
+        c.write_interaction(user_id, {"interaction_id": "int-golden-wok-1", "shown": [], "rejected": [],
+                                      "rejected_restaurants": ["Golden Wok"], "reason": "too oily",
+                                      "at": "2026-11-13T19:30:00+00:00"})
+    prefs = nodes.run_distiller(user_id, run_id="seed-demo")   # no-op on a re-run: no new episodes
+    learned = [p for p in c.read_preferences(user_id) if p.get("source") == "learned"]
+    return {"orders": len(demo_orders()), "learned_now": len(prefs),
+            "learned": [(p["text"], p.get("episode_ids", [])) for p in learned]}
 
 
 if __name__ == "__main__":
     out = seed()
-    print(f"seeded {out['orders']} demo orders")
+    print(f"seeded {out['orders']} demo orders; distiller learned {out['learned_now']} preference(s) this run")
     for text, ids in out["learned"]:
         print(f"learned: {text} <- {', '.join(ids)}")

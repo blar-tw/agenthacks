@@ -6,9 +6,15 @@ import re
 from datetime import datetime
 from typing import Any, Iterable
 
-from contracts import Offer, SearchResult
+from contracts import Offer
+from data.actors import SearchResult
 
-_MONEY = re.compile(r"(\d+(?:[.,]\d{1,2})?)")
+_MONEY = re.compile(r"(\d+(?:\.\d{1,2})?)")
+
+# contracts.Offer.fees is a float that defaults to 0.0, so it cannot say "unknown".
+# The Uber Eats Actor reports no fee: those offer_ids are listed here, and the audit
+# payload records fees_known=false. (Asked P1 for Optional[float] fees.)
+UNKNOWN_FEES: set[str] = set()
 
 
 def parse_money(v: Any) -> float | None:
@@ -55,37 +61,35 @@ def _time(v: Any, default: datetime) -> datetime:
 
 
 def offer_id(platform: str, store: str, item: str, scraped_at: datetime) -> str:
-    h = hashlib.sha1(f"{platform}|{store}|{item}|{scraped_at.isoformat()}".encode()).hexdigest()[:12]
-    return f"{'ue' if platform == 'ubereats' else 'dd'}-{h}"
+    """Stable per snapshot: the same scrape always gives the same id."""
+    return "off_" + hashlib.sha1(f"{platform}|{store}|{item}|{scraped_at.isoformat()}".encode()).hexdigest()[:12]
 
 
-def _offer(platform: str, res: SearchResult, store: dict[str, Any], item: dict[str, Any]) -> Offer | None:
-    name = _first(item, "itemName", "name", "title")
+def _offer(res: SearchResult, store: dict[str, Any], item: dict[str, Any]) -> Offer | None:
+    name = _first(item, "itemName", "item", "name", "title")
     price = parse_money(_first(item, "price", "priceDisplay"))
-    restaurant = _first(store, "storeName", "name", "restaurant", "title")
+    restaurant = _first(store, "storeName", "restaurant", "name", "title")
     if not name or price is None or not restaurant:
         return None
-    scraped = _time(_first(item, "scrapedAt") or _first(store, "scrapedAt"), res.scraped_at)
+    scraped = _time(_first(item, "scrapedAt", "scraped_at") or _first(store, "scrapedAt"), res.scraped_at)
     store_key = str(_first(store, "storeId", "url", "storeUrl") or restaurant)
-    cuisines = _first(store, "cuisines") or []
-    return Offer(
-        id=offer_id(platform, store_key, str(name), scraped),
-        platform=platform,  # type: ignore[arg-type]
+    fees = parse_money(_first(store, "deliveryFee", "delivery_fee", "fees"))
+    o = Offer(
+        offer_id=offer_id(res.platform, store_key, str(name), scraped),
         restaurant=str(restaurant).strip(),
-        restaurant_id=_first(store, "storeId"),
-        address=_first(store, "address", "storeAddress"),
+        restaurant_address=str(_first(store, "address", "restaurant_address", "storeAddress") or ""),
         item=str(name).strip(),
         description=str(_first(item, "description") or "").strip(),
         price=price,
-        fees=parse_money(_first(store, "deliveryFee", "delivery_fee")),
-        eta_min=parse_minutes(_first(store, "etaMinutes", "eta", "etaRange")),
-        currency=str(_first(item, "currency") or "USD"),
-        cuisines=list(cuisines) if isinstance(cuisines, list) else [str(cuisines)],
-        rating=parse_money(_first(store, "averageRating", "rating")),
-        source_url=_first(store, "storeUrl", "url"),
-        actor_run_id=res.actor_run_id,
+        fees=fees if fees is not None else 0.0,
+        eta_min=parse_minutes(_first(store, "etaMinutes", "eta_min", "eta", "etaRange")),
+        source=res.platform,
         scraped_at=scraped,
+        url=str(_first(store, "storeUrl", "url") or ""),
     )
+    if fees is None:
+        UNKNOWN_FEES.add(o.offer_id)
+    return o
 
 
 def offers_from_result(res: SearchResult) -> list[Offer]:
@@ -96,35 +100,17 @@ def offers_from_result(res: SearchResult) -> list[Offer]:
     for row in res.items:
         if row.get("error"):
             continue
-        if {"restaurant", "item", "price"} <= row.keys():          # already Offer-shaped
-            row = {**row, "storeName": row["restaurant"], "itemName": row["item"]}
-            o = _offer(res.platform, res, row, row)
-        elif isinstance(row.get("menu"), list):                   # DoorDash: one row per store
-            for item in row["menu"]:
-                if (o := _offer(res.platform, res, row, item)):
-                    out.append(o)
-            continue
-        elif isinstance(row.get("items"), list):                  # Uber Eats nested mode
-            for item in row["items"]:
-                if (o := _offer(res.platform, res, row, item)):
-                    out.append(o)
-            continue
-        else:                                                     # Uber Eats flat mode: one row per item
-            o = _offer(res.platform, res, row, row)
-        if o:
+        if isinstance(row.get("menu"), list):          # DoorDash: one row per store, menu inside
+            out.extend(o for item in row["menu"] if (o := _offer(res, row, item)))
+        elif isinstance(row.get("items"), list):       # Uber Eats nested mode
+            out.extend(o for item in row["items"] if (o := _offer(res, row, item)))
+        elif (o := _offer(res, row, row)):              # Uber Eats flat mode, or an Offer-shaped dict
             out.append(o)
-    return _dedupe(out)
+    return dedupe(out)
 
 
-def _dedupe(offers: Iterable[Offer]) -> list[Offer]:
+def dedupe(offers: Iterable[Offer]) -> list[Offer]:
     seen: dict[str, Offer] = {}
     for o in offers:
-        seen.setdefault(o.id, o)
+        seen.setdefault(o.offer_id, o)
     return list(seen.values())
-
-
-def normalize_results(results: dict[str, SearchResult]) -> list[Offer]:
-    out: list[Offer] = []
-    for res in results.values():
-        out.extend(offers_from_result(res))
-    return out

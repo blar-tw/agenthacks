@@ -8,10 +8,23 @@ from __future__ import annotations
 import asyncio
 import json
 from datetime import datetime, timedelta, timezone
-from typing import Any
+from typing import Any, Optional
 
-from contracts import PLATFORMS, Platform, SearchResult
+from pydantic import BaseModel, Field
+
+from contracts import Platform
 from data import config
+
+PLATFORMS: tuple[Platform, ...] = ("ubereats", "doordash")
+
+
+class SearchResult(BaseModel):
+    """Raw output of one Actor run, before normalize."""
+    platform: Platform
+    items: list[dict[str, Any]] = Field(default_factory=list)
+    actor_run_id: Optional[str] = None
+    scraped_at: datetime
+    error: Optional[str] = None       # set when the platform failed or timed out
 
 
 def ubereats_input(city: str, store_urls: list[str]) -> dict[str, Any]:

@@ -2,7 +2,7 @@
 
 1. Match the restaurant first, by name and address.
 2. Compare the dish vectors inside that restaurant (SIE), or fuzzy names (cut-list fallback).
-3. Check the price ratio and the modifiers (size, spice level).
+3. Check the price ratio and the modifiers (size).
 Similar meaning does not prove two dishes are the same, so every match carries a confidence.
 """
 from __future__ import annotations
@@ -18,7 +18,6 @@ from data.sie import Embedder, cosine
 _SYN = {"szechuan": "sichuan", "szechwan": "sichuan", "w/": "with ", "&": " and ", "—": " ", "-": " "}
 _STOP = {"restaurant", "kitchen", "the", "cafe", "inc", "llc", "sf"}
 _SIZE = {"small", "medium", "large", "regular", "family", "half", "full"}
-_SPICE = {"mild", "medium", "hot", "extra hot", "spicy", "numbing"}
 
 RESTAURANT_MIN = 0.85
 VECTOR_MIN = 0.80
@@ -41,15 +40,15 @@ def _street_no(addr: str | None) -> str | None:
 
 def restaurant_similarity(a: Offer, b: Offer) -> float:
     name = fuzz.token_set_ratio(norm(a.restaurant), norm(b.restaurant)) / 100
-    na, nb = _street_no(a.address), _street_no(b.address)
+    na, nb = _street_no(a.restaurant_address), _street_no(b.restaurant_address)
     if na and nb and na != nb:
         return 0.0          # same name, different branch
     return name
 
 
-def _modifiers(o: Offer, vocab: set[str]) -> set[str]:
+def _sizes(o: Offer) -> set[str]:
     text = f" {norm(o.item)} "
-    return {w for w in vocab if f" {w} " in text}
+    return {w for w in _SIZE if f" {w} " in text}
 
 
 def _confidence(sim: float, a: Offer, b: Offer) -> float:
@@ -57,7 +56,7 @@ def _confidence(sim: float, a: Offer, b: Offer) -> float:
     if ratio > MAX_PRICE_RATIO:
         return 0.0
     conf = sim * (1 - 0.3 * (ratio - 1))   # 10% apart costs 3 points
-    if _modifiers(a, _SIZE) ^ _modifiers(b, _SIZE):
+    if _sizes(a) ^ _sizes(b):
         conf *= 0.8
     return max(0.0, min(1.0, conf))
 
@@ -68,24 +67,24 @@ def dish_text(o: Offer) -> str:
 
 def match_offers(offers: list[Offer], embedder: Embedder | None = None,
                  vectors: dict[str, list[float]] | None = None) -> tuple[list[Match], str]:
-    """Return (matches, method). method is "vector", or "fuzzy" when no embedder is given."""
-    ue = [o for o in offers if o.platform == "ubereats"]
-    dd = [o for o in offers if o.platform == "doordash"]
+    """Return (matches, method). method is "vector", or "fuzzy" when no embedder is given.
+    Match.offer_ids is [ubereats offer_id, doordash offer_id]."""
+    ue = [o for o in offers if o.source == "ubereats"]
+    dd = [o for o in offers if o.source == "doordash"]
+    method = "vector" if embedder is not None else "fuzzy"
     if not ue or not dd:
-        return [], "vector" if embedder else "fuzzy"
+        return [], method
 
     by_store: dict[str, list[Offer]] = defaultdict(list)
     for o in ue + dd:
-        by_store[f"{o.platform}|{o.restaurant}|{o.address or ''}"].append(o)
+        by_store[f"{o.source}|{o.restaurant}|{o.restaurant_address}"].append(o)
     ue_stores = [k for k in by_store if k.startswith("ubereats|")]
     dd_stores = [k for k in by_store if k.startswith("doordash|")]
 
-    method = "vector" if embedder is not None else "fuzzy"
     vecs = vectors if vectors is not None else {}
-    if embedder is not None and not vectors:
-        todo = ue + dd
-        for o, v in zip(todo, embedder.embed([dish_text(o) for o in todo])):
-            vecs[o.id] = v
+    if embedder is not None and not vecs:
+        both = ue + dd
+        vecs.update(zip([o.offer_id for o in both], embedder.embed([dish_text(o) for o in both])))
 
     matches: list[Match] = []
     for uk in ue_stores:
@@ -100,22 +99,19 @@ def match_offers(offers: list[Offer], embedder: Embedder | None = None,
         for a in by_store[uk]:
             for b in by_store[best_dk]:
                 if method == "vector":
-                    sim = cosine(vecs[a.id], vecs[b.id])
-                    floor = VECTOR_MIN
+                    sim, floor = cosine(vecs[a.offer_id], vecs[b.offer_id]), VECTOR_MIN
                 else:
-                    sim = fuzz.token_set_ratio(norm(a.item), norm(b.item)) / 100
-                    floor = FUZZY_MIN
+                    sim, floor = fuzz.token_set_ratio(norm(a.item), norm(b.item)) / 100, FUZZY_MIN
                 if sim >= floor:
                     pairs.append((sim, a, b))
         used: set[str] = set()
         for sim, a, b in sorted(pairs, key=lambda p: p[0], reverse=True):   # greedy one-to-one
-            if a.id in used or b.id in used:
+            if a.offer_id in used or b.offer_id in used:
                 continue
             conf = _confidence(sim, a, b) * best
             if conf < 0.5:
                 continue
-            used |= {a.id, b.id}
-            matches.append(Match(id=f"m-{a.id}-{b.id}", ubereats_offer_id=a.id, doordash_offer_id=b.id,
-                                 confidence=round(conf, 3), method=method,
+            used |= {a.offer_id, b.offer_id}
+            matches.append(Match(offer_ids=[a.offer_id, b.offer_id], confidence=round(conf, 3),
                                  evidence_ids=[e for e in (a.evidence_id, b.evidence_id) if e]))
     return matches, method

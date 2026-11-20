@@ -8,7 +8,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 
-from contracts import Constraints, Match, MemoryContext, Offer, RankedOption, RankerName
+from contracts import Constraints, Match, Offer, RankedOption
 from data.sie import Scorer
 
 # A hard rule names a food; these are the words that count as that food.
@@ -26,11 +26,15 @@ EXCLUSION_TERMS: dict[str, list[str]] = {
 _PLURAL = re.compile(r"(?:es|s)$")
 
 
+def _has(word: str, text: str) -> bool:
+    return re.search(rf"\b{re.escape(word)}(?:s|es)?\b", text) is not None
+
+
 def term_of(text: str) -> str:
     """'No mushrooms' / 'I'm allergic to peanuts' / 'dislikes mushrooms' -> 'mushroom' / 'peanut'."""
     t = text.lower()
     for key, words in EXCLUSION_TERMS.items():
-        if any(re.search(rf"\b{re.escape(w)}(?:s|es)?\b", t) for w in [key, *words]):
+        if any(_has(w, t) for w in [key, *words]):
             return key
     last = re.sub(r"[^a-z ]", "", t).split()
     return _PLURAL.sub("", last[-1]) if last else t
@@ -39,14 +43,18 @@ def term_of(text: str) -> str:
 def violates(offer: Offer, terms: list[str]) -> str | None:
     hay = f"{offer.item} {offer.description}".lower()
     for term in terms:
-        for w in EXCLUSION_TERMS.get(term, [term]):
-            if re.search(rf"\b{re.escape(w)}(?:s|es)?\b", hay):
-                return term
+        if any(_has(w, hay) for w in EXCLUSION_TERMS.get(term, [term])):
+            return term
     return None
 
 
-def est_total(o: Offer, party_size: int) -> float:
-    return round(o.price * max(party_size, 1) + (o.fees or 0.0), 2)
+def est_total(o: Offer, people: int) -> float:
+    return round(o.price * max(people, 1) + (o.fees or 0.0), 2)
+
+
+def hard_terms(c: Constraints, memory: dict | None) -> list[str]:
+    rules = [r for r in (memory or {}).get("rules", []) if r.get("kind", "hard") == "hard"]
+    return sorted({term_of(x) for x in c.hard_excludes} | {r.get("term") or term_of(r.get("text", "")) for r in rules})
 
 
 @dataclass
@@ -55,86 +63,74 @@ class FilterResult:
     removed: list[dict] = field(default_factory=list)   # {offer_id, reason}
 
 
-def filter_offers(offers: list[Offer], c: Constraints, memory: MemoryContext | None, matches: list[Match],
+def filter_offers(offers: list[Offer], c: Constraints, memory: dict | None, matches: list[Match],
                   rejected: list[str]) -> FilterResult:
-    hard = [term_of(x) for x in c.exclusions] + [p.term or term_of(p.text) for p in (memory.hard_rules if memory else [])]
-    hard = sorted(set(hard))
-    by_id = {o.id: o for o in offers}
+    hard = hard_terms(c, memory)
     partner: dict[str, tuple[str, str]] = {}
     for m in matches:
-        partner[m.ubereats_offer_id] = (m.doordash_offer_id, m.id)
-        partner[m.doordash_offer_id] = (m.ubereats_offer_id, m.id)
+        a, b = m.offer_ids
+        partner[a], partner[b] = (b, m.match_id), (a, m.match_id)
 
     removed: list[dict] = []
     ok: dict[str, Offer] = {}
     for o in offers:
-        if o.id in rejected:
-            removed.append({"offer_id": o.id, "reason": "rejected by the user"}); continue
+        if o.offer_id in rejected:
+            removed.append({"offer_id": o.offer_id, "reason": "rejected by the user"}); continue
         if (t := violates(o, hard)):
-            removed.append({"offer_id": o.id, "reason": f"hard rule: no {t}"}); continue
-        total = est_total(o, c.party_size)
-        if c.budget is not None and total > c.budget:
-            removed.append({"offer_id": o.id, "reason": f"over budget: ${total:.2f} > ${c.budget:.2f}"}); continue
+            removed.append({"offer_id": o.offer_id, "reason": f"hard rule: no {t}"}); continue
+        total = est_total(o, c.people)
+        if c.budget_total is not None and total > c.budget_total:
+            removed.append({"offer_id": o.offer_id, "reason": f"over budget: ${total:.2f} > ${c.budget_total:.2f}"})
+            continue
         if c.max_eta_min is not None and o.eta_min is not None and o.eta_min > c.max_eta_min:
-            removed.append({"offer_id": o.id, "reason": f"too slow: {o.eta_min} min > {c.max_eta_min} min"}); continue
-        ok[o.id] = o
+            removed.append({"offer_id": o.offer_id, "reason": f"too slow: {o.eta_min} min > {c.max_eta_min} min"})
+            continue
+        ok[o.offer_id] = o
 
     kept: list[RankedOption] = []
     done: set[str] = set()
     for o in ok.values():
-        if o.id in done:
+        if o.offer_id in done:
             continue
-        alt, match_id = None, None
-        if o.id in partner and partner[o.id][0] in ok:
-            other = ok[partner[o.id][0]]
-            match_id = partner[o.id][1]
-            # show the cheaper platform first; known fees beat unknown ones on a tie
-            a, b = sorted([o, other], key=lambda x: (est_total(x, c.party_size), x.fees is None))
-            o, alt = a, b
-            done.add(alt.id)
-        done.add(o.id)
-        ev = [e for e in (o.evidence_id, alt.evidence_id if alt else None) if e]
-        kept.append(RankedOption(offer=o, score=0.0, ranker="price", est_total=est_total(o, c.party_size),
-                                 fees_known=o.fees is not None, eta_known=o.eta_min is not None,
-                                 match_id=match_id, alt_offer=alt, evidence_ids=ev))
+        match_id = None
+        if o.offer_id in partner and partner[o.offer_id][0] in ok:
+            other, match_id = ok[partner[o.offer_id][0]], partner[o.offer_id][1]
+            o = min([o, other], key=lambda x: est_total(x, c.people))   # show the cheaper platform
+            done.add(other.offer_id)
+        done.add(o.offer_id)
+        kept.append(RankedOption(offer=o, score=0.0, ranker="price", match_id=match_id))
     return FilterResult(kept=kept, removed=removed)
 
 
-def rank_price(options: list[RankedOption]) -> list[RankedOption]:
-    out = sorted(options, key=lambda r: (r.est_total, r.offer.eta_min if r.offer.eta_min is not None else 999))
-    return [r.model_copy(update={"score": -r.est_total, "ranker": "price"}) for r in out]
+def rank_price(options: list[RankedOption], people: int) -> list[RankedOption]:
+    out = sorted(options, key=lambda r: (est_total(r.offer, people), r.offer.eta_min or 999))
+    return [r.model_copy(update={"score": -est_total(r.offer, people), "ranker": "price"}) for r in out]
 
 
-def rerank_query(c: Constraints, memory: MemoryContext | None) -> str:
-    parts = [c.query or ", ".join(filter(None, [c.cuisine, *c.wants]))]
-    soft = list(c.wants) + [p.text for p in (memory.soft_prefs if memory else [])]
+def rerank_query(c: Constraints, memory: dict | None) -> str:
+    parts = [c.dish_query or c.raw_text or ", ".join(filter(None, [c.cuisine, *c.soft_prefs]))]
+    soft = list(c.soft_prefs) + [p.get("text", "") for p in (memory or {}).get("soft_prefs", [])]
+    soft = [s for s in dict.fromkeys(soft) if s]
     if soft:
-        parts.append("The user prefers: " + "; ".join(dict.fromkeys(soft)))
+        parts.append("The user prefers: " + "; ".join(soft))
     return " ".join(p for p in parts if p)
 
 
-def rank_reranker(options: list[RankedOption], c: Constraints, memory: MemoryContext | None, scorer: Scorer,
-                  rejected_restaurants: list[str] | None = None) -> list[RankedOption]:
-    query = rerank_query(c, memory)
-    texts = {r.offer.id: f"{r.offer.item}: {r.offer.description} ({r.offer.restaurant})" for r in options}
-    scores = scorer.score(query, texts)
-    bad = {x.lower() for x in (rejected_restaurants or [])}
-    for i in (memory.recent_rejections if memory else []):
-        bad |= {x.lower() for x in i.rejected_restaurants}
-    liked = {o.restaurant.lower() for o in (memory.recent_orders if memory else []) if (o.rating or 0) >= 4}
+def rank_reranker(options: list[RankedOption], c: Constraints, memory: dict | None, scorer: Scorer,
+                  bad_restaurants: set[str] | None = None) -> list[RankedOption]:
+    scores = scorer.score(rerank_query(c, memory),
+                          {r.offer.offer_id: f"{r.offer.item}: {r.offer.description} ({r.offer.restaurant})"
+                           for r in options})
+    bad = {x.lower() for x in (bad_restaurants or set())}
+    for i in (memory or {}).get("rejections", []):
+        bad |= {x.lower() for x in i.get("rejected_restaurants", [])}
+    liked = {o.get("restaurant", "").lower() for o in (memory or {}).get("orders", []) if (o.get("rating") or 0) >= 4}
     out = []
     for r in options:
-        s = scores.get(r.offer.id, 0.0)
         name = r.offer.restaurant.lower()
+        s = scores.get(r.offer.offer_id, 0.0)
         s += 0.05 if name in liked else 0.0
         s -= 0.15 if name in bad else 0.0
-        s -= 0.02 if not r.eta_known else 0.0
+        s -= 0.02 if r.offer.eta_min is None else 0.0
         out.append(r.model_copy(update={"score": round(s, 4), "ranker": "reranker"}))
     return sorted(out, key=lambda r: r.score, reverse=True)
-
-
-def rank(options: list[RankedOption], ranker: RankerName, c: Constraints, memory: MemoryContext | None,
-         scorer: Scorer | None, rejected_restaurants: list[str] | None = None) -> list[RankedOption]:
-    if ranker == "reranker" and scorer is not None:
-        return rank_reranker(options, c, memory, scorer, rejected_restaurants)
-    return rank_price(options)

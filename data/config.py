@@ -12,7 +12,8 @@ load_dotenv(ROOT / ".env")
 
 
 def env(name: str, default: str = "") -> str:
-    return os.environ.get(name, default).strip()
+    """An env var, or the default when it is unset or blank (P1's .env.example has blank lines)."""
+    return os.environ.get(name, "").strip() or default
 
 
 def env_list(name: str) -> list[str]:

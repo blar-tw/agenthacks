@@ -11,8 +11,9 @@ import time
 
 from _common import Smoke
 
-from contracts import PLATFORMS, Offer
+from contracts import Offer
 from data import actors, config
+from data.actors import PLATFORMS
 from data.normalize import offers_from_result
 
 s = Smoke("apify")

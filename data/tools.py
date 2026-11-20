@@ -1,68 +1,58 @@
-"""Tool interface, P2's part: search and get_menu in live and fixtures mode.
+"""P2's tool modes for contracts.ShopTools: "fixtures" (saved Actor JSON) and "live" (Apify).
 
-build_cart, quote and submit belong to P1 (Playwright or deep link) and P3 (Firedrill sim).
+search and get_menu return contracts.Offer. build_cart, quote and submit come from
+contracts.StubTools: a cart built from the offer, the quote read back, and submit returns
+the store deep link for the user to pay on the platform. It never pays.
 """
 from __future__ import annotations
 
-from typing import Any
+import asyncio
 
-from contracts import Constraints, Offer, Platform, SearchResult
+import contracts as c
 from data import actors, config
+from data.actors import SearchResult
+from data.normalize import offers_from_result
 
 
-class FixtureShopTools:
+class FixtureTools(c.StubTools):
     """Saved Actor output. For building, tests, and the backup demo."""
 
-    def __init__(self, missing: set[str] | None = None):
-        self.missing = missing or set()   # simulate a platform being down
+    def __init__(self, missing: set[str] | None = None) -> None:
+        super().__init__()
+        self.fail_platforms = set(missing or ())
+        self.last: dict[str, SearchResult] = {}   # platform -> raw result, for the audit trail
 
-    async def search(self, platform: Platform, location: str, constraints: Constraints) -> SearchResult:
-        res = actors.load_fixture(platform)
-        if platform in self.missing:
-            return SearchResult(platform=platform, scraped_at=res.scraped_at, error="platform down (simulated)")
-        return res
+    def _raw(self, platform: c.Platform, constraints: c.Constraints) -> SearchResult:
+        return actors.load_fixture(platform)
 
-    async def get_menu(self, platform: Platform, store_url: str) -> SearchResult:
-        res = actors.load_fixture(platform)
-        keep = [i for i in res.items if store_url in (i.get("storeUrl"), i.get("url"))]
-        return res.model_copy(update={"items": keep})
+    def search(self, constraints: c.Constraints, platform: c.Platform) -> list[c.Offer]:
+        self.calls["search"] += 1
+        if platform in self.fail_platforms:
+            raise TimeoutError(f"{platform} search failed")
+        res = self._raw(platform, constraints)
+        self.last[platform] = res
+        if res.error:
+            raise RuntimeError(f"{platform}: {res.error}")
+        return offers_from_result(res)
 
-    async def build_cart(self, offer: Offer, quantity: int) -> dict[str, Any]:
-        raise NotImplementedError("build_cart is P1's")
-
-    async def quote(self, cart: dict[str, Any]) -> dict[str, Any]:
-        raise NotImplementedError("quote is P1's")
-
-    async def submit(self, cart: dict[str, Any]) -> dict[str, Any]:
-        raise NotImplementedError("submit is P1's")
-
-
-class LiveShopTools(FixtureShopTools):
-    """Apify Actors. Only a city or public store URLs go to Apify."""
-
-    async def search(self, platform: Platform, location: str, constraints: Constraints) -> SearchResult:
-        return await actors.run_actor(platform, actors.input_for(platform, location))
-
-    async def get_menu(self, platform: Platform, store_url: str) -> SearchResult:
-        return await actors.run_actor(platform, actors.input_for(platform, "", [store_url]))
+    def get_menu(self, store_url: str, platform: c.Platform) -> list[c.Offer]:
+        self.calls["get_menu"] += 1
+        return [o for o in offers_from_result(actors.load_fixture(platform)) if o.url == store_url]
 
 
-_tools = None
+class LiveTools(FixtureTools):
+    """Apify Actors. Only a city or public store URLs go to Apify, never cookies or tokens."""
+
+    def _raw(self, platform: c.Platform, constraints: c.Constraints) -> SearchResult:
+        city = config.env("SCRAPE_CITY", "San Francisco, CA")
+        return asyncio.run(actors.run_actor(platform, actors.input_for(platform, city)))
+
+    def get_menu(self, store_url: str, platform: c.Platform) -> list[c.Offer]:
+        self.calls["get_menu"] += 1
+        res = asyncio.run(actors.run_actor(platform, actors.input_for(platform, "", [store_url])))
+        return offers_from_result(res)
 
 
-def get_tools():
-    global _tools
-    if _tools is None:
-        mode = config.tool_mode()
-        if mode == "live":
-            _tools = LiveShopTools()
-        elif mode == "sim":
-            raise RuntimeError("TOOL_MODE=sim: P3's Firedrill tools must be registered with set_tools()")
-        else:
-            _tools = FixtureShopTools()
-    return _tools
-
-
-def set_tools(tools) -> None:
-    global _tools
-    _tools = tools
+def register() -> None:
+    c.register_tools("fixtures", FixtureTools)
+    c.register_tools("live", LiveTools)
