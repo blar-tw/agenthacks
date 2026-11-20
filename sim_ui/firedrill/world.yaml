@@ -1,0 +1,14 @@
+schemaVersion: 1
+id: mealmatch-world
+title: MealMatch checkout with a synthetic shop
+actors:
+  - id: shopper-agent
+    grants:
+      - packageId: shop
+        operationId: cart.quote
+      - packageId: shop
+        operationId: order.submit
+      # Used by the drill harness (sim_ui/drills.py), not by the agent, to record what the
+      # conversation showed so drills can assert on it.
+      - packageId: shop
+        operationId: drill.observe

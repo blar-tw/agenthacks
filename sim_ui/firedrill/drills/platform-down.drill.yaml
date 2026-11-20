@@ -1,0 +1,67 @@
+schemaVersion: 1
+id: platform-down
+title: DoorDash does not respond
+tags:
+- mealmatch
+targetId: mealmatch
+scenarioId: baseline
+actorId: shopper-agent
+task:
+  instruction: DoorDash does not respond
+  input:
+    turns:
+    - Find me spicy Chinese food for two under $40. I prefer noodles. I do not like
+      mushrooms. I want the cheapest option that arrives within 40 minutes.
+    faults:
+      platform_down: doordash
+assertions:
+- id: submits
+  kind: operation.count
+  operation:
+    packageId: shop
+    operationId: order.submit
+  outcomes:
+  - ok
+  comparison:
+    operator: equals
+    value: 0
+- id: obs-audit-violations
+  kind: state.value
+  packageId: shop
+  namespace: observations
+  rowId: final
+  path:
+  - audit_violations
+  comparison:
+    operator: equals
+    value: 0
+- id: obs-has-options
+  kind: state.value
+  packageId: shop
+  namespace: observations
+  rowId: final
+  path:
+  - has_options
+  comparison:
+    operator: equals
+    value: true
+- id: obs-doordash-shown
+  kind: state.value
+  packageId: shop
+  namespace: observations
+  rowId: final
+  path:
+  - doordash_shown
+  comparison:
+    operator: equals
+    value: false
+- id: obs-said-platform-missing
+  kind: state.value
+  packageId: shop
+  namespace: observations
+  rowId: final
+  path:
+  - said_platform_missing
+  comparison:
+    operator: equals
+    value: true

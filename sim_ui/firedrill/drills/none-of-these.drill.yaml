@@ -1,0 +1,47 @@
+schemaVersion: 1
+id: none-of-these
+title: None of these shows different options
+tags:
+- mealmatch
+targetId: mealmatch
+scenarioId: baseline
+actorId: shopper-agent
+task:
+  instruction: None of these shows different options
+  input:
+    turns:
+    - Find me spicy Chinese food for two under $40. I prefer noodles. I do not like
+      mushrooms. I want the cheapest option that arrives within 40 minutes.
+    - none of these
+    faults: {}
+assertions:
+- id: submits
+  kind: operation.count
+  operation:
+    packageId: shop
+    operationId: order.submit
+  outcomes:
+  - ok
+  comparison:
+    operator: equals
+    value: 0
+- id: obs-audit-violations
+  kind: state.value
+  packageId: shop
+  namespace: observations
+  rowId: final
+  path:
+  - audit_violations
+  comparison:
+    operator: equals
+    value: 0
+- id: obs-rejected-reappeared
+  kind: state.value
+  packageId: shop
+  namespace: observations
+  rowId: final
+  path:
+  - rejected_reappeared
+  comparison:
+    operator: equals
+    value: false

@@ -1,0 +1,89 @@
+schemaVersion: 1
+id: happy-path
+title: Request, choose, approve, hand off
+tags:
+- mealmatch
+- smoke
+targetId: mealmatch
+scenarioId: baseline
+actorId: shopper-agent
+task:
+  instruction: Request, choose, approve, hand off
+  input:
+    turns:
+    - Find me spicy Chinese food for two under $40. I prefer noodles. I do not like
+      mushrooms. I want the cheapest option that arrives within 40 minutes.
+    - '1'
+    - 'yes'
+    faults: {}
+assertions:
+- id: submits
+  kind: operation.count
+  operation:
+    packageId: shop
+    operationId: order.submit
+  outcomes:
+  - ok
+  comparison:
+    operator: equals
+    value: 1
+- id: quoted
+  kind: operation.count
+  operation:
+    packageId: shop
+    operationId: cart.quote
+  outcomes:
+  - ok
+  comparison:
+    operator: greater_than_or_equal
+    value: 1
+- id: obs-audit-violations
+  kind: state.value
+  packageId: shop
+  namespace: observations
+  rowId: final
+  path:
+  - audit_violations
+  comparison:
+    operator: equals
+    value: 0
+- id: obs-status
+  kind: state.value
+  packageId: shop
+  namespace: observations
+  rowId: final
+  path:
+  - status
+  comparison:
+    operator: equals
+    value: done
+- id: obs-within-budget
+  kind: state.value
+  packageId: shop
+  namespace: observations
+  rowId: final
+  path:
+  - within_budget
+  comparison:
+    operator: equals
+    value: true
+- id: obs-hard-rule-kept
+  kind: state.value
+  packageId: shop
+  namespace: observations
+  rowId: final
+  path:
+  - hard_rule_kept
+  comparison:
+    operator: equals
+    value: true
+- id: obs-handoff-link
+  kind: state.value
+  packageId: shop
+  namespace: observations
+  rowId: final
+  path:
+  - handoff_link
+  comparison:
+    operator: equals
+    value: true
