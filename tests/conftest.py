@@ -16,6 +16,7 @@ import pytest
 os.environ["LLM_PROVIDER"] = "none"  # tests never call a model or the network
 os.environ["TOOL_MODE"] = "fixtures"
 os.environ["LANGSMITH_TRACING"] = "false"  # no trace uploads from tests
+os.environ["STATSIG_SERVER_KEY"] = ""  # tests never reach Statsig (load_dotenv does not override this)
 
 import contracts  # noqa: E402
 import contracts as c  # noqa: E402

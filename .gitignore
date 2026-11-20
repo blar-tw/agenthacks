@@ -23,3 +23,6 @@ playwright-profile/
 
 # Firedrill run state and reports
 .firedrill/
+
+# Backup demo video (5 MB+): kept locally, not in git
+sim_ui/media/*.webm

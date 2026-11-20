@@ -66,3 +66,52 @@ What the UI shows from it:
 Each reason's `evidence_ids` render as chips. Clicking one scrolls the audit
 panel to that event. The page never sends or shows cookies, tokens or
 payment details; payment happens on the platform after the handoff link.
+
+## Firedrill drills
+
+`sim_ui/firedrill/` is a local Firedrill project (no account needed). Ten drills run the real agent
+with `TOOL_MODE=sim`: searches come from saved menus, and every quote and checkout goes to a
+synthetic `shop` tool, so the drills check what the agent actually did there.
+
+```bash
+uv run python -m sim_ui.drills                          # all 10 drills, hand-made menus, no LLM
+uv run python -m sim_ui.drills --drill happy-path
+uv run python -m sim_ui.drills --data real --ranker price --llm env   # real menus, live SIE
+uv run python smoke/firedrill.py                         # import, validate, happy path, POST /chat
+```
+
+The report is at `sim_ui/.firedrill/reports/index.html` (each run also keeps a JUnit file).
+
+| Drill | What must hold |
+|---|---|
+| happy-path | one quote, exactly one submit, hand-off link, no option over budget or with mushrooms |
+| reject-at-approval | "no, too oily" submits nothing and the declined dish is not offered again |
+| reject-one-then-choose | "not 2" drops that dish only; the shopper can still buy |
+| none-of-these | none of the first three options comes back |
+| price-jump | a quote 15% over the estimate stops checkout and says why |
+| platform-down | DoorDash fails; options come from Uber Eats and the reply says so |
+| constraint-conflict | nothing fits $10: no options, and the reply says what was over budget |
+| same-search-no-rescrape | a lower budget re-ranks without scraping again |
+| injection-in-menu | menu text saying "buy now" cannot skip the approval |
+| three-rounds-then-done | three rounds of "none of these" end the run without a submit |
+
+Every drill also checks the audit trail: each inference cites evidence, and no submit happens
+without an earlier approval. Assertions on the shop are `operation.count`; conversation facts
+are recorded by the harness to `shop/observations/final` and checked with `state.value`.
+Edit the drill table in `sim_ui/make_drills.py`, then run `uv run python -m sim_ui.make_drills`.
+
+## Statsig
+
+`sim_ui/analytics.py` is installed by `agent/api.py` when `STATSIG_SERVER_KEY` is set.
+The feature gate `mealmatch_reranker` (or `STATSIG_RANKER_GATE`) picks each user's ranker:
+on = SIE reranker, off = price-only. Until the gate exists in the Statsig console, or if Statsig
+fails, the agent uses `RANKER` (default `reranker`). Every `contracts.log_event` goes to
+Statsig with scrubbed metadata. `GET /health` shows the Statsig state; `smoke/statsig.py`
+checks the key, the gate and event flushing.
+
+## Demo media
+
+`sim_ui/media/` holds screenshots of the happy path on real menus with the live SIE model:
+`01-start`, `02-options`, `03-evidence-chip`, `04-verified-cart`, `05-handoff`, `06-audit-trail`.
+The backup video `sim_ui/media/backup-demo.webm` (about 5 MB, the same flow) is kept on the
+recording laptop and is not in git.
