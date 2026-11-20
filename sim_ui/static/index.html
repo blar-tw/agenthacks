@@ -264,7 +264,7 @@ function renderConstraints(c) {
 function renderOptions(ranked) {
   const wrap = el(`<div class="options"></div>`);
   ranked.forEach((r, i) => {
-    const o = r.offer, total = -r.score;
+    const o = r.offer, total = r.total ?? -r.score;  // the reranker's score is not a price
     const card = el(`<div class="card ${i === 0 ? "best" : ""}">
       <div class="top"><span class="plat ${esc(o.source)}">${esc(PLAT[o.source] || o.source)}</span>
         ${o.eta_min ? `<span class="fine">${o.eta_min} min</span>` : ""}
@@ -319,8 +319,38 @@ function renderHandoff(d) {
 }
 
 // ---------- audit panel
+const list = (xs, n = 3) => (xs || []).slice(0, n).map(esc).join(", ") + ((xs || []).length > n ? ` +${xs.length - n} more` : "");
+
+// Payload shapes written by the real agent (agent/ + data/); the mock's shapes follow below.
+function realSummary(e) {
+  const p = e.payload || {};
+  if (p.what === "memory read from the store") return `Read memory: ${(p.order_ids || []).length} past orders, ${(p.hard_rules || []).length} hard rules${p.hard_rules?.length ? ` (${list(p.hard_rules)})` : ""}`;
+  if (p.request_text) return `Request: “${esc(p.request_text)}”`;
+  if (p.constraints) { const c = p.constraints; return `Parsed: ${[c.dish_query && `dish=${esc(c.dish_query)}`, c.cuisine && `cuisine=${esc(c.cuisine)}`, c.people && `people=${c.people}`, c.budget_total && `budget=${money(c.budget_total)}`, c.max_eta_min && `max=${c.max_eta_min} min`, c.hard_excludes?.length && `no ${list(c.hard_excludes)}`].filter(Boolean).join(", ")}`; }
+  if (e.kind === "evidence" && p.platform && p.offers != null && !p.error) return `Searched ${esc(PLAT[p.platform] || p.platform)} (${esc(p.mode)}): <b>${p.offers}</b> dishes`;
+  if (p.what === "same dish on both platforms") return `Same dish: ${esc(p.ubereats_item)} ≈ ${esc(p.doordash_item)} at ${esc(p.restaurant)} (${Math.round(p.confidence * 100)}%, ${esc(p.method)})`;
+  if (p.what === "matching fallback") return `Matching fallback: ${esc(p.note)}`;
+  if (p.what === "removed options that break a rule") { const why = {}; (p.removed || []).forEach(x => why[x.reason.split(" (")[0].split(":")[0]] = (why[x.reason.split(" (")[0].split(":")[0]] || 0) + 1);
+    return `Kept <b>${p.kept}</b>, removed ${(p.removed || []).length}${Object.keys(why).length ? ": " + Object.entries(why).map(([r, n]) => `${n} ${esc(r)}`).join(", ") : ""}`; }
+  if (p.what === "ranked options") return `Ranked by ${esc(p.ranker)}${p.requested_ranker && p.requested_ranker !== p.ranker ? ` (asked: ${esc(p.requested_ranker)})` : ""}: ${(p.top || []).slice(0, 3).map(t => `${esc(t.item)} ${money(t.est_total)}`).join(" › ")}`;
+  if (p.summary && p.writer) return `Explained (${esc(p.writer)}): ${esc(p.summary)}`;
+  if (p.decision === "select") return `User chose option ${esc(p.text)}`;
+  if (p.decision === "reject_one") return `User turned down one option: “${esc(p.text)}”`;
+  if (p.decision === "none_of_these") return `User: “${esc(p.text)}”`;
+  if (p.route && p.reader) return `Read feedback (${esc(p.reader)}): ${esc(p.route)}${p.reason ? ` — “${esc(p.reason)}”` : ""}${p.new_hard_rules?.length ? `; new rule: no ${list(p.new_hard_rules)}` : ""}`;
+  if (p.tool === "build_cart") return `Built cart on ${esc(PLAT[p.platform] || p.platform)}: ${(p.items || []).map(l => `${l.qty} × ${esc(l.item)}`).join(", ")}`;
+  if (p.tool === "quote") return `Live quote: <b>${money(p.total)}</b> (${money(p.subtotal)} + ${money(p.fees)} fees)`;
+  if (p.quote_ok != null) return `Quote check ${p.quote_ok ? "passed" : "<b>failed</b>"}: estimate ${money(p.estimate)}, quoted ${money(p.quoted_total)}${p.problems?.length ? ` — ${list(p.problems)}` : ""}`;
+  if (e.kind === "approval" && p.approved != null) return `User ${p.approved ? "<b>approved</b>" : "declined"} ${money(p.total)}${p.approved ? "" : `: “${esc(p.text)}”`}`;
+  if (p.tool === "submit") return `Handed off to checkout: <a href="${esc(p.handoff_url)}" target="_blank" rel="noopener">${esc(p.handoff_url)}</a>`;
+  if (p.what) return `${esc(p.what)}${p.note ? ": " + esc(p.note) : ""}${p.error ? ` (${esc(p.error)})` : ""}`;
+  return null;
+}
+
 function summary(e) {
   const p = e.payload || {};
+  const real = realSummary(e);
+  if (real) return real;
   if (e.kind === "evidence" && p.item) return `<b>${esc(p.item)}</b> at ${esc(p.restaurant)} on ${esc(PLAT[p.platform] || p.platform)}: ${money(p.price)} + ${money(p.fees)} fees${p.eta_min ? `, ${p.eta_min} min` : ""}`;
   if (e.kind === "evidence" && p.error) return `${esc(PLAT[p.platform] || p.platform)} search failed (${esc(p.error)})`;
   if (p.tool === "quote") return `Live quote: <b>${money(p.total)}</b>`;

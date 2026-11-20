@@ -38,6 +38,7 @@ class GraphState(AgentState, total=False):
     user_event_id: Optional[str]
     approval_event_id: Optional[str]
     notice: str
+    reject_one: Optional[str]  # offer_id the user turned down alone ("not 2"), else None
 
 
 P1_NODES = ["parse_request", "explain", "select_option", "build_cart", "verify_quote", "approve_purchase",
@@ -187,7 +188,7 @@ def chat(thread_id: str, message: str, user_id: str = "demo") -> dict:
             "constraints": {}, "prev_constraints": {}, "offers": [], "raw_by_platform": None, "matches": [],
             "ranked": [], "shown": [], "rejected": [], "selected": None, "cart": None, "quote": None,
             "approval": None, "approval_event_id": None, "feedback": "", "route": "", "round": 0,
-            "reply": "", "handoff_url": "", "ranker": ranker, "near_misses": [], "missing_platforms": [], "notice": "",
+            "reply": "", "handoff_url": "", "ranker": ranker, "near_misses": [], "missing_platforms": [], "notice": "", "reject_one": None,
         }, config)
     pending = result.get("__interrupt__") or []
     if pending:

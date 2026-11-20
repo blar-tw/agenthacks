@@ -6,8 +6,13 @@ server is up, `mock_agent.py` serves the same contract on top of
 `contracts.py` (StubTools + real `audit()` events).
 
 ```bash
-uv run uvicorn sim_ui.mock_agent:app --reload --port 8000
+uv run uvicorn agent.api:app --port 8000          # the real agent (serves this page at /)
+uv run uvicorn sim_ui.mock_agent:app --reload --port 8000   # the mock
 ```
+
+The real agent turns each `action` into the words a user would type ("2", "not 2: too slow",
+"yes", "no, too expensive"), so typed replies and button presses take the same path.
+"Not this" drops that dish on both platforms and keeps the other options.
 
 Open http://localhost:8000/. To point the page at another server, add
 `?api=http://localhost:9000` (that server needs CORS, or serve

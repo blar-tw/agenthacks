@@ -51,14 +51,25 @@ def _singular(w: str) -> str:
     return w[:-2]   # tomatoes -> tomato
 
 
-def request_words(c: Constraints) -> list[str]:
-    words = re.findall(r"[a-z]+", f"{c.dish_query} {c.cuisine or ''}".lower())
-    return sorted({_singular(w) for w in words if w not in _STOP and len(w) > 2})
+_CUISINES = {"chinese", "thai", "indian", "mexican", "italian", "japanese", "korean", "vietnamese", "american",
+             "french", "greek", "mediterranean", "sichuan", "szechuan", "cantonese", "hunan"}
 
 
-def relevant(offer: Offer, words: list[str]) -> bool:
-    hay = f"{offer.item} {offer.description} {offer.restaurant}".lower()
-    return any(_has(t, hay) for w in words for t in RELEVANCE_TERMS.get(w, [w]))
+def _words(text: str) -> list[str]:
+    return sorted({_singular(w) for w in re.findall(r"[a-z]+", text.lower()) if w not in _STOP and len(w) > 2})
+
+
+def request_words(c: Constraints) -> tuple[list[str], bool]:
+    """(words, dish_only). Dish words match the dish itself; with none, the cuisine may match the restaurant."""
+    dish = _words(c.dish_query)
+    specific = [w for w in dish if w not in _CUISINES]
+    dish = specific or dish   # "spicy Chinese food": "spicy" says more than "chinese"
+    return (dish, True) if dish else (_words(c.cuisine or ""), False)
+
+
+def relevant(offer: Offer, words: list[str], dish_only: bool = True) -> bool:
+    hay = f"{offer.item} {offer.description}" + ("" if dish_only else f" {offer.restaurant}")
+    return any(_has(t, hay.lower()) for w in words for t in RELEVANCE_TERMS.get(w, [w]))
 
 
 def _has(word: str, text: str) -> bool:
@@ -105,6 +116,8 @@ def filter_offers(offers: list[Offer], c: Constraints, memory: dict | None, matc
     for m in matches:
         a, b = m.offer_ids
         partner[a], partner[b] = (b, m.match_id), (a, m.match_id)
+    # Turning down a dish turns down the same dish on the other platform too.
+    rejected = list(dict.fromkeys([*rejected, *(partner[r][0] for r in rejected if r in partner)]))
 
     removed: list[dict] = []
     ok: dict[str, Offer] = {}
@@ -116,8 +129,8 @@ def filter_offers(offers: list[Offer], c: Constraints, memory: dict | None, matc
             removed.append({"offer_id": o.offer_id, "reason": f"hard rule: no {t}"}); continue
         allowed.append(o)
 
-    words = request_words(c)
-    on_topic = [o for o in allowed if relevant(o, words)] if words else allowed
+    words, dish_only = request_words(c)
+    on_topic = [o for o in allowed if relevant(o, words, dish_only)] if words else allowed
     if on_topic:   # if no dish matches the request words, the gate is off and the ranker decides
         keep = {o.offer_id for o in on_topic}
         removed += [{"offer_id": o.offer_id, "reason": f"not what was asked for ({', '.join(words)})"}
