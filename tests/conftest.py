@@ -31,10 +31,10 @@ class FakeSIE:
         n = math.sqrt(sum(x * x for x in v)) or 1.0
         return [x / n for x in v]
 
-    def embed(self, texts, is_query=False):
+    def embed(self, texts, is_query=False, max_wait_s=90.0):
         return [self._vec(t.split(".")[0]) for t in texts]   # item name only: keeps the fake strict
 
-    def score(self, query, items):
+    def score(self, query, items, max_wait_s=90.0):
         q = set(_tokens(query))
         return {k: len(q & set(_tokens(v))) / (len(q) or 1) for k, v in items.items()}
 

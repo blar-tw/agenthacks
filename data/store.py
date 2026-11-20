@@ -135,11 +135,21 @@ class SingleStoreStore:
             return list(cur.fetchall())
 
     # audit
+    _AUDIT_SQL = ("INSERT INTO audit_events (event_id, run_id, node, ts, kind, source_url, actor_run_id, payload, "
+                  "evidence_ids, hash) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)")
+
+    @staticmethod
+    def _audit_row(e: c.AuditEvent) -> tuple:
+        return (e.event_id, e.run_id, e.node, _naive(e.ts), e.kind, e.source_url, e.actor_run_id,
+                _j(e.payload), _j(e.evidence_ids), audit_hash(e))
+
     def add_audit(self, e: c.AuditEvent) -> None:
-        self._exec("INSERT INTO audit_events (event_id, run_id, node, ts, kind, source_url, actor_run_id, payload, "
-                   "evidence_ids, hash) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
-                   (e.event_id, e.run_id, e.node, _naive(e.ts), e.kind, e.source_url, e.actor_run_id,
-                    _j(e.payload), _j(e.evidence_ids), audit_hash(e)))
+        self._exec(self._AUDIT_SQL, self._audit_row(e))
+
+    def add_audits(self, events: list[c.AuditEvent]) -> None:
+        """One multi-row INSERT: 600 evidence events in one round trip, not 600."""
+        for i in range(0, len(events), 500):
+            self._exec(self._AUDIT_SQL, [self._audit_row(e) for e in events[i:i + 500]], many=True)
 
     def get_audit(self, run_id: str) -> list[c.AuditEvent]:
         out = []
@@ -266,6 +276,20 @@ def set_last_distilled(user_id: str, at: datetime) -> None:
         s.set_last_distilled(user_id, at)
     else:
         _BOOKMARKS[user_id] = at
+
+
+def audit_many(kind: str, items: list[tuple[dict, list[str], str | None]], *, run_id: str, node: str) -> list[str]:
+    """Batch version of contracts.audit: items are (payload, evidence_ids, source_url).
+    Same event shape and scrubbing as contracts.audit; one write for the whole batch."""
+    events = [c.AuditEvent(run_id=run_id, node=node, kind=kind, payload=c.scrub(p), evidence_ids=list(ev),
+                           source_url=url) for p, ev, url in items]
+    s = c.get_store()
+    if hasattr(s, "add_audits"):
+        s.add_audits(events)
+    else:
+        for e in events:
+            s.add_audit(e)
+    return [e.event_id for e in events]
 
 
 def write_snapshots(run_id: str, offers: list[c.Offer]) -> None:

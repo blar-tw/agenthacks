@@ -17,11 +17,11 @@ from data import config
 
 
 class Embedder(Protocol):
-    def embed(self, texts: list[str], is_query: bool = False) -> list[list[float]]: ...
+    def embed(self, texts: list[str], is_query: bool = False, max_wait_s: float = 90.0) -> list[list[float]]: ...
 
 
 class Scorer(Protocol):
-    def score(self, query: str, items: dict[str, str]) -> dict[str, float]: ...
+    def score(self, query: str, items: dict[str, str], max_wait_s: float = 90.0) -> dict[str, float]: ...
 
 
 # Response shapes, validated with Pydantic.
@@ -71,21 +71,21 @@ class SIEClient:
             time.sleep(delay)
             waited += delay
 
-    def embed(self, texts: list[str], is_query: bool = False) -> list[list[float]]:
+    def embed(self, texts: list[str], is_query: bool = False, max_wait_s: float = 90.0) -> list[list[float]]:
         out: list[list[float]] = []
         for i in range(0, len(texts), 64):
             batch = texts[i:i + 64]
             body = {"items": [{"id": str(j), "text": t} for j, t in enumerate(batch)],
                     "params": {"output_types": ["dense"], "options": {"is_query": is_query}}}
-            r = self._post(f"/v1/encode/{quote(config.SIE_EMBED_MODEL, safe='')}", body)
+            r = self._post(f"/v1/encode/{quote(config.SIE_EMBED_MODEL, safe='')}", body, max_wait_s)
             out.extend(it.dense.values for it in _EncodeResp.model_validate(r.json()).items)
         return out
 
-    def score(self, query: str, items: dict[str, str]) -> dict[str, float]:
+    def score(self, query: str, items: dict[str, str], max_wait_s: float = 90.0) -> dict[str, float]:
         if not items:
             return {}
         body = {"query": {"text": query}, "items": [{"id": k, "text": v} for k, v in items.items()]}
-        r = self._post(f"/v1/score/{quote(config.SIE_RERANK_MODEL, safe='')}", body)
+        r = self._post(f"/v1/score/{quote(config.SIE_RERANK_MODEL, safe='')}", body, max_wait_s)
         return {s.item_id: s.score for s in _ScoreResp.model_validate(r.json()).scores}
 
 

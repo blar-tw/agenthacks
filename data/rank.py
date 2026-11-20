@@ -117,10 +117,9 @@ def rerank_query(c: Constraints, memory: dict | None) -> str:
 
 
 def rank_reranker(options: list[RankedOption], c: Constraints, memory: dict | None, scorer: Scorer,
-                  bad_restaurants: set[str] | None = None) -> list[RankedOption]:
-    scores = scorer.score(rerank_query(c, memory),
-                          {r.offer.offer_id: f"{r.offer.item}: {r.offer.description} ({r.offer.restaurant})"
-                           for r in options})
+                  bad_restaurants: set[str] | None = None, max_wait_s: float = 90.0) -> list[RankedOption]:
+    items = {r.offer.offer_id: f"{r.offer.item}: {r.offer.description} ({r.offer.restaurant})" for r in options}
+    scores = scorer.score(rerank_query(c, memory), items, max_wait_s=max_wait_s)
     bad = {x.lower() for x in (bad_restaurants or set())}
     for i in (memory or {}).get("rejections", []):
         bad |= {x.lower() for x in i.get("rejected_restaurants", [])}
