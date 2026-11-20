@@ -91,3 +91,14 @@ def test_llm_feedback_new_request_becomes_next_request(tools):
     chat("t", "no, spicy rice noodles instead")
     parse_calls = [m for name, m in llm.get_llm().calls if name == "ExtractConstraints"]
     assert "spicy rice noodles instead" in parse_calls[-1][1].content
+
+
+def test_llm_paraphrase_cannot_smuggle_a_hard_rule(tools):
+    llm.set_llm(RecordingLLM({**ARGS, "FeedbackDecision": {
+        "route": "new", "new_request": "rice noodles, no peanuts"}}))
+    chat("t", DEMO)
+    chat("t", "1")
+    chat("t", "no, rice noodles instead")
+    parse_calls = [m for name, m in llm.get_llm().calls if name == "ExtractConstraints"]
+    assert "no, rice noodles instead" in parse_calls[-1][1].content
+    assert "peanuts" not in parse_calls[-1][1].content

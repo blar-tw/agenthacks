@@ -237,13 +237,14 @@ def handle_feedback(state: dict) -> dict:
                          {"text": rule, "kind": "hard", "source": "stated", "confidence": 1.0})
         c.hard_excludes = list(dict.fromkeys([*c.hard_excludes, rule]))
     rnd = state.get("round", 0) + 1
-    audit("inference", {"route": fb["route"], "reason": fb["reason"], "reader": fb["reader"], "rejected": newly,
+    audit("inference", {"route": fb["route"], "reason": fb["reason"], "reader": fb["reader"], "new_request": fb["new_request"], "rejected": newly,
                         "new_hard_rules": fb["new_hard_rules"], "round": rnd},
           [state.get("user_event_id")] if state.get("user_event_id") else [])
     out = {"rejected": rejected, "route": fb["route"], "round": rnd, "selected": None,
            "approval": None, "constraints": c.model_dump()}
     if fb["route"] == "new":
-        out["request_text"] = fb["new_request"] or state.get("feedback", "")
+        # The user's own words, not the LLM's paraphrase: hard rules may only come from the user.
+        out["request_text"] = state.get("feedback", "") or fb["new_request"]
     return out
 
 
