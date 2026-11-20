@@ -15,10 +15,11 @@ import os
 import re
 from functools import lru_cache
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Literal, Optional
 
 from pydantic import BaseModel, Field
 
+from agent.prompts import explain_prompt, feedback_prompt, parse_prompt
 from contracts import Constraints
 
 _LLM_OVERRIDE: Any = None
@@ -160,20 +161,27 @@ def _stated(term: str, text: str) -> bool:
     return bool(term) and (term in t or term.rstrip("s") in t)
 
 
-def extract_constraints(text: str) -> tuple[Constraints, str]:
+def _call_tool(llm: Any, messages: Any, tool: type[BaseModel]) -> BaseModel:
+    """Structured output through one Pydantic tool. Forced tool_choice first (SIE);
+    OpenRouter rejects forcing, so retry with "auto". Raises if no valid call comes back."""
+    try:
+        msg = llm.bind_tools([tool], tool_choice=tool.__name__).invoke(messages)
+    except Exception:
+        msg = llm.bind_tools([tool], tool_choice="auto").invoke(messages)
+    record_fallback_cost(msg)
+    return tool.model_validate(msg.tool_calls[0]["args"])
+
+
+def extract_constraints(text: str, memory: dict | None = None) -> tuple[Constraints, str]:
     """Returns (constraints, parser) where parser is 'llm' or 'rules'."""
     llm = get_llm()
     if llm is not None:
-        prompt = [("system", "Extract the user's food order constraints. Call the tool exactly once."),
-                  ("user", text)]
+        mem = memory or {}
+        known = {"hard_rules": mem.get("hard_rules", []), "soft_prefs": mem.get("soft_prefs", []),
+                 "recent_orders": len(mem.get("orders", []))}
         try:
-            try:
-                msg = llm.bind_tools([ExtractConstraints], tool_choice="ExtractConstraints").invoke(prompt)
-            except Exception:  # OpenRouter rejects a forced tool_choice; "auto" works there
-                msg = llm.bind_tools([ExtractConstraints], tool_choice="auto").invoke(prompt)
-            record_fallback_cost(msg)
-            args = msg.tool_calls[0]["args"]
-            got = ExtractConstraints.model_validate(args)
+            got = _call_tool(llm, parse_prompt.invoke({"request": text, "memory": json.dumps(known)}),
+                             ExtractConstraints)
             c = Constraints(raw_text=text, **got.model_dump())
             c.hard_excludes = [e for e in c.hard_excludes if _stated(e, text)]
             return c, "llm"
@@ -189,16 +197,14 @@ def summarize_options(constraints: dict, options: list[dict]) -> tuple[str, str]
     """One short paragraph about the ranked options. Returns (text, writer)."""
     llm = get_llm()
     facts = [{"n": i + 1, "restaurant": o["offer"]["restaurant"], "item": o["offer"]["item"],
-              "platform": o["offer"]["source"], "total": o.get("total"), "eta_min": o["offer"].get("eta_min")}
+              "platform": o["offer"]["source"], "total_usd": o.get("total"), "eta_min": o["offer"].get("eta_min")}
              for i, o in enumerate(options)]
     if llm is not None and facts:
         try:
-            msg = llm.invoke([
-                ("system", "You help a user choose food delivery. In at most 2 short sentences, say why option 1 "
-                           "is recommended, using only the facts given. Do not invent facts."),
-                ("user", json.dumps({"request": constraints.get("raw_text", ""), "options": facts}))])
+            msg = llm.invoke(explain_prompt.invoke({"request": constraints.get("raw_text", ""),
+                                                    "options": json.dumps(facts, indent=1)}))
             record_fallback_cost(msg)
-            text = (msg.content or "").strip()
+            text = (msg.content or "").strip() if isinstance(msg.content, str) else ""
             if text:
                 return text, "llm"
         except Exception:
@@ -207,17 +213,27 @@ def summarize_options(constraints: dict, options: list[dict]) -> tuple[str, str]
         return "No option meets all your rules.", "template"
     f = facts[0]
     return (f"Option 1 is {f['item']} from {f['restaurant']} on {f['platform']}: "
-            f"${f['total']:.2f} total, about {f['eta_min']} min."), "template"
+            f"${f['total_usd']:.2f} total, about {f['eta_min']} min."), "template"
 
 
 # ---------------------------------------------------------------- handle_feedback
 
 
-def read_feedback(text: str) -> dict:
-    """Classify a rejection or follow-up. Rule-based: fast and auditable."""
+class FeedbackDecision(BaseModel):
+    """What to do after the user turned an offer down."""
+
+    route: Literal["more", "new", "done"] = Field(description="more options, a changed request, or stop")
+    reason: str = Field("none given", description="The user's reason in a few words")
+    new_hard_rules: list[str] = Field(default_factory=list,
+                                      description="Foods the user now says they must never get (allergy, firm never)")
+    new_request: str = Field("", description="For route 'new': the changed request in the user's words")
+
+
+def rules_feedback(text: str) -> dict:
+    """Rule-based reader: the fallback when no model is available."""
     t = text.lower().strip()
     if any(w in t for w in ("done", "stop", "cancel", "never mind", "nevermind", "forget it")):
-        return {"route": "done", "reason": text.strip(), "new_hard_rules": []}
+        return {"route": "done", "reason": text.strip(), "new_hard_rules": [], "new_request": "", "reader": "rules"}
     new_rules = [m.strip() for m in re.findall(
         r"(?:allergic to|i can't eat|i cannot eat|never eat|i don't eat|i do not eat)\s+([a-z][a-z\s-]*?)(?=[.,;!]|\band\b|$)", t)]
     new_rules = [r for r in new_rules if _is_food_term(r)]
@@ -226,4 +242,23 @@ def read_feedback(text: str) -> dict:
         route = "new"
     else:
         route = "more"
-    return {"route": route, "reason": text.strip(), "new_hard_rules": new_rules}
+    return {"route": route, "reason": text.strip(), "new_hard_rules": new_rules,
+            "new_request": text.strip() if route == "new" else "", "reader": "rules"}
+
+
+def read_feedback(text: str, shown: list[dict] | None = None) -> dict:
+    """Read a rejection or follow-up (doc 7: handle_feedback uses the LLM).
+    Returns route, reason, new_hard_rules, new_request and which reader decided."""
+    llm = get_llm()
+    if llm is not None and text.strip():
+        brief = [{"n": i + 1, "item": o["offer"]["item"], "restaurant": o["offer"]["restaurant"],
+                  "platform": o["offer"]["source"]} for i, o in enumerate(shown or [])]
+        try:
+            d = _call_tool(llm, feedback_prompt.invoke({"feedback": text, "shown": json.dumps(brief)}),
+                           FeedbackDecision)
+            rules = [r.strip() for r in d.new_hard_rules if _stated(r, text) and _is_food_term(r.lower())]
+            return {"route": d.route, "reason": d.reason or text.strip(), "new_hard_rules": rules,
+                    "new_request": (d.new_request or text).strip() if d.route == "new" else "", "reader": "llm"}
+        except Exception:
+            pass
+    return rules_feedback(text)

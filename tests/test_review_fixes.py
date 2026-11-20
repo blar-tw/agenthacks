@@ -6,13 +6,13 @@ from types import SimpleNamespace
 import pytest
 
 import contracts
-from agent import llm, nodes
+from agent import llm
 from agent.graph import chat
 from tests.conftest import DEMO
 
 
 @pytest.mark.parametrize("reply", ["ok but too expensive, cancel", "yeah no", "sure thing not", "yes I mean no",
-                                   "no", "maybe"])
+                                   "no", "maybe", "yes please, but cheaper", "looks good not"])
 def test_hedged_or_negative_reply_is_not_approval(tools, reply):
     chat("t", DEMO)
     chat("t", "1")
@@ -20,7 +20,8 @@ def test_hedged_or_negative_reply_is_not_approval(tools, reply):
     assert tools.calls["submit"] == 0
 
 
-@pytest.mark.parametrize("reply", ["yes", "Yes!", " ok ", "approve", "go ahead."])
+@pytest.mark.parametrize("reply", ["yes", "Yes!", " ok ", "approve", "go ahead.", "yes please", "yes, go ahead",
+                                   "looks good", "Sounds good, thanks!"])
 def test_plain_yes_is_approval(tools, reply):
     chat("t", DEMO)
     chat("t", "1")

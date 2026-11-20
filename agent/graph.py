@@ -74,8 +74,7 @@ def _with_audit(name: str, fn: Callable) -> Callable:
         try:
             return fn(state)
         finally:
-            from contracts import _AUDIT_CTX
-            _AUDIT_CTX.reset(token)
+            token.var.reset(token)
     run.__name__ = name
     return run
 

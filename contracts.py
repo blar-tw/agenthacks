@@ -185,10 +185,8 @@ def stable_offer_id(source: str, restaurant: str, item: str) -> str:
 class StubTools:
     """Deterministic in-process shop used until real modes are registered."""
 
-    quote_multiplier: float = 1.0  # tests set >1.10 to simulate a price jump
-    fail_platforms: set[str] = set()
-
     def __init__(self) -> None:
+        self.quote_multiplier = 1.0  # tests set >1.10 to simulate a price jump
         self.calls: dict[str, int] = {"search": 0, "get_menu": 0, "build_cart": 0, "quote": 0, "submit": 0}
         self.fail_platforms = set()
 

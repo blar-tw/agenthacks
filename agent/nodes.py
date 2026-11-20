@@ -13,7 +13,7 @@ from datetime import datetime
 
 from langgraph.types import interrupt
 
-from agent.default_nodes import estimate_total, tool_mode
+from agent.default_nodes import tool_mode
 from agent.llm import extract_constraints, read_feedback, summarize_options
 from contracts import Constraints, Offer, audit, get_tools, log_event, write_preference
 
@@ -39,7 +39,7 @@ def _merge_constraints(prev: dict, new: Constraints) -> Constraints:
 def parse_request(state: dict) -> dict:
     text = state.get("request_text", "")
     req_eid = audit("evidence", {"request_text": text}, source_url="user://chat")
-    parsed, parser = extract_constraints(text)
+    parsed, parser = extract_constraints(text, state.get("memory"))
     prev = state.get("constraints") or {}
     c = _merge_constraints(prev, parsed)
     memory = state.get("memory") or {}
@@ -185,8 +185,11 @@ def route_after_verify(state: dict) -> str:
     return "approve_purchase" if state.get("quote_ok") else "filter_rank"
 
 
-# Explicit approval only: the whole reply must be a plain yes. "ok but cancel" is not approval.
-_YES = re.compile(r"\s*(y|yes|yep|yeah|approve|approved|confirm|ok|okay|sure|go ahead|do it)\s*[.!]?\s*", re.I)
+# Explicit approval only: the whole reply must be a plain yes, optionally with a polite tail.
+# "yes please" / "looks good, go ahead" approve; "ok but cancel" / "yeah no" do not.
+_YES_WORD = r"(?:y|yes|yep|yeah|approve|approved|confirm|confirmed|ok|okay|sure|go ahead|do it|looks good|sounds good)"
+_TAIL = r"(?:please|thanks|thank you|go ahead|do it|order it|let's do it)"
+_YES = re.compile(rf"\s*{_YES_WORD}(?:[\s,!.]+{_TAIL})*\s*[.!]*\s*", re.I)
 
 
 def approve_purchase(state: dict) -> dict:
@@ -222,7 +225,7 @@ def submit_or_handoff(state: dict) -> dict:
 
 
 def handle_feedback(state: dict) -> dict:
-    fb = read_feedback(state.get("feedback", ""))
+    fb = read_feedback(state.get("feedback", ""), state.get("shown"))
     if state.get("selected"):
         newly = [state["selected"]["offer"]["offer_id"]]
     else:
@@ -234,13 +237,13 @@ def handle_feedback(state: dict) -> dict:
                          {"text": rule, "kind": "hard", "source": "stated", "confidence": 1.0})
         c.hard_excludes = list(dict.fromkeys([*c.hard_excludes, rule]))
     rnd = state.get("round", 0) + 1
-    audit("inference", {"route": fb["route"], "reason": fb["reason"], "rejected": newly,
+    audit("inference", {"route": fb["route"], "reason": fb["reason"], "reader": fb["reader"], "rejected": newly,
                         "new_hard_rules": fb["new_hard_rules"], "round": rnd},
           [state.get("user_event_id")] if state.get("user_event_id") else [])
     out = {"rejected": rejected, "route": fb["route"], "round": rnd, "selected": None,
            "approval": None, "constraints": c.model_dump()}
     if fb["route"] == "new":
-        out["request_text"] = fb["reason"]
+        out["request_text"] = fb["new_request"] or state.get("feedback", "")
     return out
 
 
