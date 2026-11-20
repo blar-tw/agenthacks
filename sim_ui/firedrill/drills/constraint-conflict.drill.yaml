@@ -1,0 +1,55 @@
+schemaVersion: 1
+id: constraint-conflict
+title: Nothing fits the budget
+tags:
+- mealmatch
+targetId: mealmatch
+scenarioId: baseline
+actorId: shopper-agent
+task:
+  instruction: Nothing fits the budget
+  input:
+    turns:
+    - Spicy noodles for two under $10 within 40 minutes, no mushrooms
+    faults: {}
+assertions:
+- id: submits
+  kind: operation.count
+  operation:
+    packageId: shop
+    operationId: order.submit
+  outcomes:
+  - ok
+  comparison:
+    operator: equals
+    value: 0
+- id: obs-audit-violations
+  kind: state.value
+  packageId: shop
+  namespace: observations
+  rowId: final
+  path:
+  - audit_violations
+  comparison:
+    operator: equals
+    value: 0
+- id: obs-has-options
+  kind: state.value
+  packageId: shop
+  namespace: observations
+  rowId: final
+  path:
+  - has_options
+  comparison:
+    operator: equals
+    value: false
+- id: obs-said-over-budget
+  kind: state.value
+  packageId: shop
+  namespace: observations
+  rowId: final
+  path:
+  - said_over_budget
+  comparison:
+    operator: equals
+    value: true

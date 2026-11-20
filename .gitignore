@@ -20,3 +20,6 @@ playwright-profile/
 
 # Browser checks
 .playwright-mcp/
+
+# Firedrill run state and reports
+.firedrill/
