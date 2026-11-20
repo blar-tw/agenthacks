@@ -25,6 +25,41 @@ EXCLUSION_TERMS: dict[str, list[str]] = {
 }
 _PLURAL = re.compile(r"(?:es|s)$")
 
+# Relevance gate: a request word matches a dish if the dish text has the word or one of these.
+# Search results hold everything near the user (a salad bar for "spicy Chinese"), and the price
+# ranker alone would pick the cheapest thing on the page.
+RELEVANCE_TERMS: dict[str, list[str]] = {
+    "spicy": ["spicy", "chili", "chilli", "chile", "mala", "hot", "sichuan", "szechuan", "chongqing", "numbing",
+              "peppercorn", "jalapeno", "sriracha", "gochujang", "vindaloo", "kung pao", "dan dan"],
+    "noodle": ["noodle", "lo mein", "chow mein", "ramen", "udon", "soba", "pho", "pad thai", "dan dan", "mein",
+               "vermicelli", "rice stick", "pasta", "spaghetti"],
+    "chinese": ["chinese", "sichuan", "szechuan", "chongqing", "hunan", "cantonese", "mapo", "kung pao",
+                "general tso", "lo mein", "chow mein", "dan dan", "wonton", "dumpling", "bok choy", "fried rice",
+                "dim sum", "char siu", "mala", "wok"],
+    "rice": ["rice", "biryani", "risotto", "bibimbap", "congee"],
+    "soup": ["soup", "broth", "pho", "ramen", "stew"],
+}
+_STOP = {"food", "dish", "dishes", "meal", "something", "some", "for", "me", "the", "a", "an", "and", "with",
+         "option", "options", "cheap", "cheapest", "good", "best", "order", "get", "want", "like", "style", "of"}
+
+
+def _singular(w: str) -> str:
+    if w in RELEVANCE_TERMS or not w.endswith("s") or w.endswith("ss"):
+        return w
+    if w[:-1] in RELEVANCE_TERMS or not w.endswith("oes"):
+        return w[:-1]
+    return w[:-2]   # tomatoes -> tomato
+
+
+def request_words(c: Constraints) -> list[str]:
+    words = re.findall(r"[a-z]+", f"{c.dish_query} {c.cuisine or ''}".lower())
+    return sorted({_singular(w) for w in words if w not in _STOP and len(w) > 2})
+
+
+def relevant(offer: Offer, words: list[str]) -> bool:
+    hay = f"{offer.item} {offer.description} {offer.restaurant}".lower()
+    return any(_has(t, hay) for w in words for t in RELEVANCE_TERMS.get(w, [w]))
+
 
 def _has(word: str, text: str) -> bool:
     return re.search(rf"\b{re.escape(word)}(?:s|es)?\b", text) is not None
@@ -73,11 +108,23 @@ def filter_offers(offers: list[Offer], c: Constraints, memory: dict | None, matc
 
     removed: list[dict] = []
     ok: dict[str, Offer] = {}
+    allowed: list[Offer] = []
     for o in offers:
         if o.offer_id in rejected:
             removed.append({"offer_id": o.offer_id, "reason": "rejected by the user"}); continue
         if (t := violates(o, hard)):
             removed.append({"offer_id": o.offer_id, "reason": f"hard rule: no {t}"}); continue
+        allowed.append(o)
+
+    words = request_words(c)
+    on_topic = [o for o in allowed if relevant(o, words)] if words else allowed
+    if on_topic:   # if no dish matches the request words, the gate is off and the ranker decides
+        keep = {o.offer_id for o in on_topic}
+        removed += [{"offer_id": o.offer_id, "reason": f"not what was asked for ({', '.join(words)})"}
+                    for o in allowed if o.offer_id not in keep]
+        allowed = on_topic
+
+    for o in allowed:
         total = est_total(o, c.people)
         if c.budget_total is not None and total > c.budget_total:
             removed.append({"offer_id": o.offer_id, "reason": f"over budget: ${total:.2f} > ${c.budget_total:.2f}"})

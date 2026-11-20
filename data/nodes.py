@@ -245,7 +245,11 @@ def filter_rank(state: AgentState, top_k: int = 10) -> dict[str, Any]:
                                    "score": r.score, "match_id": r.match_id} for r in ranked[:5]]},
             [r.offer.evidence_id for r in ranked[:5] if r.offer.evidence_id] or all_ev, run_id=run, node="filter_rank")
     c.log_event("ranked", {"ranker": used, "options": len(ranked)})
-    return {"ranked": [r.model_dump(mode="json") for r in ranked], "ranker": used}
+    by_id = {o.offer_id: o for o in offers}
+    near = [{"offer_id": x["offer_id"], "item": by_id[x["offer_id"]].item, "why": x["reason"],
+             "evidence_id": ev_of.get(x["offer_id"])}
+            for x in fr.removed if x["reason"].startswith(("over budget", "too slow"))] if not ranked else []
+    return {"ranked": [r.model_dump(mode="json") for r in ranked], "ranker": used, "near_misses": near}
 
 
 # ---------------------------------------------------------------- persist_learn
