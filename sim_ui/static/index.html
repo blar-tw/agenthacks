@@ -79,7 +79,7 @@ header .spacer { flex: 1; }
 .step.active .n { background: var(--accent); color: var(--accent-ink); animation: pulse 1.2s infinite; }
 .step.shown { background: var(--surface-2); color: var(--text); }
 @keyframes pulse { 50% { box-shadow: 0 0 0 5px color-mix(in srgb, var(--accent) 25%, transparent); } }
-.stage { position: relative; height: 390px; }
+.stage { position: relative; height: 430px; }
 .panel { position: absolute; inset: 0; display: none; }
 .panel.on { display: block; animation: fadein .35s; }
 @keyframes fadein { from { opacity: 0; transform: translateY(6px); } }
@@ -97,6 +97,46 @@ svg text { font-family: Inter, system-ui, sans-serif; }
 @keyframes pop { from { opacity: 0; transform: scale(.4); } to { opacity: 1; transform: scale(1); } }
 .mg-edge { stroke-dasharray: 600; stroke-dashoffset: 600; animation: draw .9s ease forwards; fill: none; }
 @keyframes draw { to { stroke-dashoffset: 0; } }
+
+/* database view */
+.mem { position: absolute; inset: 58px 14px 12px; display: flex; flex-direction: column; gap: 8px; }
+.schema { display: flex; gap: 6px; flex-wrap: wrap; }
+.tbl { font-size: 11px; color: var(--muted); border: 1px dashed var(--border); border-radius: 7px; padding: 2px 8px; font-variant-numeric: tabular-nums; }
+.tbl b { color: var(--text); font-weight: 600; margin-right: 5px; font-family: "JetBrains Mono", monospace; }
+.tbl.memt { border-style: solid; }
+.tbl.on { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); }
+.sql { font-size: 12px; background: #15140f; color: #e8e4d8; border-radius: 8px; padding: 7px 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sql .prompt { color: #7dd87d; }
+.sql .caret { display: inline-block; width: 7px; height: 13px; background: #e8e4d8; vertical-align: -2px; margin-left: 2px; animation: blink 1s steps(1) infinite; }
+.memgrid { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 250px; gap: 10px; }
+.memgrid.one { grid-template-columns: 1fr; }
+.dbwrap { overflow: auto; min-height: 0; }
+.dbt { display: flex; flex-direction: column; gap: 3px; font-family: "JetBrains Mono", monospace; font-size: 10.5px; }
+.dbr { position: relative; display: grid; grid-template-columns: repeat(var(--n), minmax(0, 1fr)); gap: 3px; transition: opacity .3s, transform .3s, background .3s; border-radius: 6px; }
+.dbr span { position: relative; border: 1px solid var(--border); background: var(--surface); border-radius: 5px; padding: 3px 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dbh span { background: var(--surface-2); color: var(--muted); font-weight: 600; }
+.dbh span.sorted::after { content: " ↓"; color: var(--accent); }
+.dbr.scan span { border-color: var(--k-evidence); background: color-mix(in srgb, var(--k-evidence) 10%, var(--surface)); }
+.dbr span.probe { outline: 2px solid var(--k-evidence); }
+.dbr.hit span[data-c="user_id"] { background: color-mix(in srgb, var(--ok) 18%, var(--surface)); border-color: var(--ok); }
+.dbr.miss { opacity: .3; }
+.dbr.cut { opacity: .35; filter: grayscale(1); }
+.dbr.picked span { border-color: var(--ok); }
+.dbr.inserted { animation: slidein .6s; }
+.dbr.inserted span { background: color-mix(in srgb, var(--accent) 14%, var(--surface)); border-color: var(--accent); }
+.dbr .rk { display: inline-block; min-width: 14px; margin-right: 4px; padding: 0 3px; border-radius: 4px; background: var(--accent); color: var(--accent-ink); text-align: center; font-weight: 700; }
+.rtag { position: absolute; right: 4px; top: 50%; transform: translateY(-50%); font-style: normal; font-size: 10px; font-weight: 700; background: var(--ok); color: #fff; border-radius: 5px; padding: 1px 6px; font-family: Inter, sans-serif; }
+.rtag.no { background: var(--muted); }
+.limit { font-size: 10.5px; color: var(--bad); font-weight: 700; border-top: 2px dashed var(--bad); padding-top: 1px; font-family: Inter, sans-serif; }
+.tray { border: 1px solid var(--border); border-radius: 10px; padding: 8px 10px; overflow-y: auto; background: var(--surface-2); }
+.tray h5 { margin: 0 0 6px; font-size: 12px; }
+.tsec { margin-bottom: 8px; font-size: 11px; }
+.tsec > b { display: block; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .04em; font-size: 10px; margin-bottom: 3px; }
+.tsec > div { display: flex; flex-wrap: wrap; gap: 4px; }
+.tchip { background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 2px 6px; animation: pop .4s; font-size: 11.5px; }
+.tchip i { font-style: normal; color: var(--muted); font-size: 10px; }
+.tchip.rule { color: var(--rule); border-color: var(--rule); font-weight: 600; }
+.tchip.pref { color: var(--mem); border-color: var(--mem); }
 
 /* parse */
 .parse { position: absolute; inset: 66px 18px 18px; display: flex; flex-direction: column; gap: 18px; }
@@ -486,59 +526,43 @@ function stageOf(e) {
 const Stages = {
   memory: {
     init(p) {
-      p.innerHTML = `<div class="cap"><h4>Recalling what you like</h4><p>Past orders and rules from <b>SingleStore</b>, learned preferences from <b>Cognee</b></p></div><svg viewBox="0 0 900 390" width="100%" height="100%"></svg>`;
-      this.svg = p.querySelector("svg"); this.drawn = false;
+      p.innerHTML = `<div class="cap"><h4>Recalling from the SingleStore database</h4><p>Replaying the 3 queries <span class="mono">load_memory</span> runs, row by row</p></div>
+        <div class="mem"><div class="schema"></div><div class="sql mono"><span class="prompt">sql&gt;</span> <span class="q"></span><span class="caret"></span></div>
+        <div class="memgrid"><div class="dbwrap"></div><div class="tray"><h5>Loaded into agent memory</h5>
+          <div class="tsec" data-s="orders"><b>Past orders</b><div></div></div>
+          <div class="tsec" data-s="rules"><b>Hard rules (never)</b><div></div></div>
+          <div class="tsec" data-s="prefs"><b>Learned preferences</b><div></div></div>
+          <div class="tsec" data-s="rej"><b>Past rejections</b><div></div></div></div></div></div>`;
+      this.p = p; this.drawn = false;
     },
-    async event(e) { facts.memoryEvent = e.payload; await this.draw(e.payload); },
-    async draw(ev) {
+    async event(e) {
+      if (e.payload?.what === "memory read from the store") facts.memoryEvent = e.payload;
       if (this.drawn) return; this.drawn = true;
-      const mem = await memoryP;
-      const cx = 450, cy = 215, svg = this.svg;
-      const orders = (mem?.orders || []).slice(0, 6);
-      const prefs = (mem?.preferences || []).filter(p => p.kind !== "hard").slice(0, 2);
-      const rules = [...new Set([...(ev.hard_rules || []), ...(mem?.preferences || []).filter(p => p.kind === "hard").map(p => p.term || p.text)]
-        .map(r => String(r).toLowerCase().replace(/^(dislikes|no)\s+/, "").replace(/s$/, "")))].slice(0, 2);
-      const rej = (mem?.interactions || []).filter(i => i.reason && i.rejected_restaurants?.length).slice(0, 1);
-      let delay = 0; const d = () => (delay += 0.12).toFixed(2) + "s";
-      const pos = {}; let edges = "", nodes = "";
-      // past orders: a column on the left
-      orders.forEach((o, i) => { pos[o.order_id] = [150, 96 + i * 52]; });
-      orders.forEach(o => {
-        const [x, y] = pos[o.order_id];
-        edges += `<path class="mg-edge" style="animation-delay:${d()}" d="M${x + 85},${y} C${x + 200},${y} ${cx - 120},${cy} ${cx - 34},${cy}" stroke="var(--border)" stroke-width="1.5"/>`;
-        const item = (o.items || [])[0] || o.restaurant || "";
-        const fresh = o.run_id && o.run_id === facts?.runId;
-        nodes += `<g class="mg-node" style="animation-delay:${d()}"><rect x="${x - 85}" y="${y - 21}" width="170" height="42" rx="10" fill="${fresh ? "color-mix(in srgb, var(--accent) 14%, var(--surface))" : "var(--surface)"}" stroke="${fresh ? "var(--accent)" : o.platform === "doordash" ? "var(--dd)" : "var(--ue)"}" stroke-width="${fresh ? 3 : 1.5}"/>${fresh ? `<text x="${x - 92}" y="${y + 4}" text-anchor="end" font-size="11" font-weight="700" fill="var(--accent)">NEW →</text>` : ""}
-          <text x="${x}" y="${y - 3}" text-anchor="middle" font-size="12" font-weight="600" fill="var(--text)">${esc(item.length > 25 ? item.slice(0, 24) + "…" : item)}</text>
-          <text x="${x}" y="${y + 13}" text-anchor="middle" font-size="10.5" fill="var(--muted)">${esc(o.order_id)} · ${esc(PLAT_SHORT[o.platform] || "")} ${o.rating ? "· " + "★".repeat(o.rating) : ""}</text></g>`;
-      });
-      // right column: learned preferences (wired to the orders they came from), hard rules, a past rejection
-      const RX = 745;
-      prefs.forEach((p, i) => {
-        const y = 100 + i * 78; pos[p.pref_id] = [RX, y];
-        (p.episode_ids || []).forEach(id => { if (pos[id]) {
-          const [ox, oy] = pos[id];
-          edges += `<path class="mg-edge" style="animation-delay:${d()}" d="M${ox + 85},${oy} C${cx - 40},${oy} ${cx + 80},${y} ${RX - 100},${y}" stroke="var(--mem)" stroke-width="1.7" opacity=".75"/>`;
-        } });
-        nodes += `<g class="mg-node" style="animation-delay:${d()}"><rect x="${RX - 100}" y="${y - 25}" width="200" height="50" rx="25" fill="color-mix(in srgb, var(--mem) 14%, var(--surface))" stroke="var(--mem)" stroke-width="1.5"/>
-          <text x="${RX}" y="${y - 3}" text-anchor="middle" font-size="12.5" font-weight="700" fill="var(--mem)">${esc(p.text)}</text>
-          <text x="${RX}" y="${y + 13}" text-anchor="middle" font-size="10.5" fill="var(--muted)">learned from ${(p.episode_ids || []).length} orders · ${Math.round((p.confidence || 0) * 100)}%</text></g>`;
-      });
-      rules.forEach((r, i) => {
-        const y = 100 + prefs.length * 78 + i * 46;
-        edges += `<path class="mg-edge" style="animation-delay:${d()}" d="M${cx + 34},${cy} C${cx + 120},${cy} ${RX - 160},${y} ${RX - 90},${y}" stroke="var(--rule)" stroke-width="1.5" stroke-dasharray="4 4"/>`;
-        nodes += `<g class="mg-node" style="animation-delay:${d()}"><rect x="${RX - 90}" y="${y - 16}" width="180" height="32" rx="8" fill="color-mix(in srgb, var(--rule) 12%, var(--surface))" stroke="var(--rule)" stroke-width="1.5"/>
-          <text x="${RX}" y="${y + 5}" text-anchor="middle" font-size="12" font-weight="700" fill="var(--rule)">⛔ NEVER ${esc(r.toUpperCase())}</text></g>`;
-      });
-      rej.forEach(r => {
-        const y = 100 + prefs.length * 78 + rules.length * 46 + 4;
-        edges += `<path class="mg-edge" style="animation-delay:${d()}" d="M${cx + 20},${cy + 26} C${cx + 80},${y} ${RX - 160},${y} ${RX - 100},${y}" stroke="var(--muted)" stroke-width="1.2" stroke-dasharray="3 4"/>`;
-        nodes += `<g class="mg-node" style="animation-delay:${d()}"><rect x="${RX - 100}" y="${y - 16}" width="200" height="32" rx="8" fill="var(--surface-2)" stroke="var(--border)"/>
-          <text x="${RX}" y="${y + 5}" text-anchor="middle" font-size="11.5" fill="var(--muted)">👎 ${esc(r.rejected_restaurants.join(", "))}: “${esc(r.reason)}”</text></g>`;
-      });
-      const you = `<g class="mg-node"><circle cx="${cx}" cy="${cy}" r="34" fill="var(--accent)"/><text x="${cx}" y="${cy + 5}" text-anchor="middle" font-size="14" font-weight="700" fill="var(--accent-ink)">You</text></g>`;
-      const empty = !orders.length && !prefs.length ? `<text x="${cx}" y="${cy + 70}" text-anchor="middle" fill="var(--muted)" font-size="13">${(ev.order_ids || []).length} past orders · ${(ev.hard_rules || []).length} hard rules</text>` : "";
-      svg.innerHTML = edges + you + nodes + empty;
+      const db = await tablesP;
+      if (!db || !db.queries?.length) { $(".dbwrap", this.p).innerHTML = `<p class="fine">Memory tables not available on this server.</p>`; return; }
+      drawSchema($(".schema", this.p), db.tables, null);
+      const user = db.user_id, q = Object.fromEntries(db.queries.map(x => [x.table, x]));
+      const tray = k => $(`.tsec[data-s="${k}"] div`, this.p);
+      const seenRule = new Set();
+      if (q.orders) {
+        const kept = await runQuery(this.p, db, q.orders, { user, orderBy: "ordered_at", limit: 5 });
+        kept.forEach(r => tray("orders").appendChild(el(`<span class="tchip">${esc(cellText("items", r.items))} <i>${esc(r.order_id)}</i></span>`)));
+      }
+      if (q.preferences) {
+        const kept = await runQuery(this.p, db, q.preferences, { user, post: r => r.kind === "hard" ? "→ hard rule" : "→ learned pref" });
+        kept.forEach(r => {
+          if (r.kind === "hard") { const t = String(r.term || r.text).toLowerCase().replace(/^(dislikes|no)\s+/, "").replace(/s$/, "");
+            if (!seenRule.has(t)) { seenRule.add(t); tray("rules").appendChild(el(`<span class="tchip rule">⛔ ${esc(t)}</span>`)); } }
+          else tray("prefs").appendChild(el(`<span class="tchip pref">${esc(r.text)} <i>${Math.round((r.confidence || 0) * 100)}% · from ${parseList(r.episode_ids).length} orders</i></span>`));
+        });
+      }
+      if (q.interactions) {
+        const kept = await runQuery(this.p, db, q.interactions, { user, orderBy: "at", limit: 20,
+          post: r => (parseList(r.rejected).length || parseList(r.rejected_restaurants).length || r.reason) ? "→ rejection" : null, postName: "is_rejection()" });
+        kept.forEach(r => tray("rej").appendChild(el(`<span class="tchip">${esc(parseList(r.rejected_restaurants).join(", ") || "an option")}: “${esc(r.reason || "")}”</span>`)));
+      }
+      drawSchema($(".schema", this.p), db.tables, null);
+      $(".sql .q", this.p).textContent = "-- memory loaded; parse_request and filter_rank use it next";
     },
   },
 
@@ -722,19 +746,107 @@ const Stages = {
 
   learn: {
     init(p) {
-      p.innerHTML = `<div class="cap"><h4>Remembering this for next time</h4><p>The order is saved to <b>SingleStore</b> · repeat orders become soft preferences (<b>Cognee</b>)</p></div><svg viewBox="0 0 900 390" width="100%" height="100%"></svg>`;
-      this.svg = p.querySelector("svg"); this.drawn = false; this.timer = null;
+      p.innerHTML = `<div class="cap"><h4>Writing this order back to SingleStore</h4><p>Next time, <span class="mono">load_memory</span> finds it · the distiller turns repeat orders into preferences</p></div>
+        <div class="mem"><div class="schema"></div><div class="sql mono"><span class="prompt">sql&gt;</span> <span class="q"></span><span class="caret"></span></div>
+        <div class="memgrid one"><div class="dbwrap"></div></div></div>`;
+      this.p = p; this.timer = null;
     },
-    event(e) {   // redraw the memory map once the save lands, with the new order highlighted
+    event(e) {
       clearTimeout(this.timer);
-      this.timer = setTimeout(() => { memoryP = fetch(`${API}/memory/${USER_ID}`).then(r => r.ok ? r.json() : null).catch(() => null);
-        this.drawn = false; Stages.memory.draw.call(this, facts.memoryEvent || {}); }, 300);
+      this.timer = setTimeout(async () => {
+        const db = await fetch(`${API}/memory/${USER_ID}/tables`).then(r => r.ok ? r.json() : null).catch(() => null);
+        const q = db?.queries?.find(x => x.table === "orders"); if (!q) return;
+        drawSchema($(".schema", this.p), db.tables, "orders");
+        const mine = q.rows.find(r => r.run_id && r.run_id === facts.runId);
+        await typeSql(this.p, mine ? `INSERT INTO orders VALUES ('${mine.order_id}', '${mine.user_id}', '${mine.platform}', '${mine.restaurant}', ${mine.items}, ${mine.price_paid}, …)` : "SELECT * FROM orders");
+        const rows = [...q.rows].sort((a, b) => String(b.ordered_at).localeCompare(String(a.ordered_at)));
+        const t = renderTable($(".dbwrap", this.p), "orders", rows);
+        rows.forEach((r, i) => { if (r === mine) { t.rows[i].classList.add("hit", "inserted"); t.rows[i].firstChild.insertAdjacentHTML("afterbegin", `<span class="rk">NEW</span>`); } });
+      }, 400);
     },
   },
 };
 function genericStage(node) {
   return { init(p) { p.innerHTML = `<div class="cap"><h4>${esc(NODE_NAME[node] || node.replace(/_/g, " "))}</h4></div><div class="glist"></div>`; this.p = p; },
            event(e) { $(".glist", this.p).appendChild(el(`<div>${summary(e)}</div>`)); } };
+}
+
+// ---------- database view helpers (memory recall and write-back)
+const MEM_COLS = {
+  orders: ["order_id", "user_id", "platform", "restaurant", "items", "price_paid", "rating", "ordered_at"],
+  preferences: ["pref_id", "user_id", "text", "kind", "source", "confidence", "episode_ids", "vec"],
+  interactions: ["interaction_id", "user_id", "rejected_restaurants", "reason", "at"],
+};
+const MEMORY_TABLES = new Set(["orders", "preferences", "interactions"]);
+function parseList(v) { if (Array.isArray(v)) return v; try { const a = JSON.parse(v); return Array.isArray(a) ? a : []; } catch { return []; } }
+function cellText(k, v) {
+  if (v == null || v === "") return "NULL";
+  if (k.endsWith("_at") || k === "at") return String(v).slice(0, 16).replace("T", " ");
+  if (typeof v === "number") return k.includes("price") ? "$" + v.toFixed(2) : String(v);
+  let s = typeof v === "string" ? v : JSON.stringify(v);
+  if (s.startsWith("[")) { const a = parseList(s); s = a.length ? a.join(", ") : "[]"; }
+  return s.length > 30 ? s.slice(0, 29) + "…" : s;
+}
+function drawSchema(box, tables, active) {
+  box.innerHTML = (tables || []).map(t => `<span class="tbl ${MEMORY_TABLES.has(t.name) ? "memt" : ""} ${t.name === active ? "on" : ""}"><b>${esc(t.name)}</b>${Number(t.rows).toLocaleString()} rows</span>`).join("");
+}
+async function typeSql(p, text) {
+  const q = $(".sql .q", p); q.textContent = "";
+  const step = Math.max(1, Math.ceil(text.length / 24));
+  for (let i = 0; i < text.length; i += step) { q.textContent = text.slice(0, i + step); await sleep(16); }
+}
+function renderTable(box, table, rows) {
+  const cols = MEM_COLS[table] || Object.keys(rows[0] || {}).slice(0, 7);
+  box.innerHTML = `<div class="dbt" style="--n:${cols.length}"><div class="dbr dbh">${cols.map(c => `<span data-c="${c}">${esc(c)}</span>`).join("")}</div>
+    ${rows.map(r => `<div class="dbr">${cols.map(c => `<span data-c="${c}" title="${esc(String(r[c] ?? "NULL"))}">${esc(cellText(c, r[c]))}</span>`).join("")}</div>`).join("")}
+    ${rows.length ? "" : `<div class="dbr empty"><span>0 rows</span></div>`}</div>`;
+  return { el: box.firstChild, rows: [...box.querySelectorAll(".dbr:not(.dbh):not(.empty)")] };
+}
+// Replays one SELECT over the table's real rows: scan + WHERE user_id, ORDER BY, LIMIT, then any Python-side filter.
+async function runQuery(p, db, q, { user, orderBy, limit, post, postName }) {
+  drawSchema($(".schema", p), db.tables, q.table);
+  await typeSql(p, q.sql);
+  const t = renderTable($(".dbwrap", p), q.table, q.rows);
+  await sleep(250);
+  const hits = [];
+  for (const [i, row] of t.rows.entries()) {
+    row.classList.add("scan");
+    const uc = row.querySelector('[data-c="user_id"]'); uc?.classList.add("probe");
+    await sleep(Math.max(35, Math.min(110, 900 / t.rows.length)));
+    row.classList.remove("scan"); uc?.classList.remove("probe");
+    const ok = q.rows[i].user_id === user;
+    row.classList.add(ok ? "hit" : "miss");
+    if (ok) hits.push(i);
+  }
+  await sleep(250);
+  let order = hits;
+  if (orderBy) {
+    t.el.querySelector(`.dbh [data-c="${orderBy}"]`)?.classList.add("sorted");
+    order = [...hits].sort((a, b) => String(q.rows[b][orderBy]).localeCompare(String(q.rows[a][orderBy])));
+    const misses = t.rows.map((_, i) => i).filter(i => !hits.includes(i));
+    [...order, ...misses].forEach(i => t.el.appendChild(t.rows[i]));
+    order.forEach((i, n) => t.rows[i].firstChild.insertAdjacentHTML("afterbegin", `<span class="rk">${n + 1}</span>`));
+    await sleep(450);
+  }
+  let kept = order;
+  if (limit && order.length > limit) {
+    order.slice(limit).forEach(i => t.rows[i].classList.add("cut"));
+    t.rows[order[limit]].insertAdjacentHTML("beforebegin", `<div class="limit">✂ LIMIT ${limit}</div>`);
+    kept = order.slice(0, limit); await sleep(450);
+  }
+  if (post) {
+    const pass = [];
+    for (const i of kept) {
+      const tag = post(q.rows[i]);
+      if (tag) { t.rows[i].insertAdjacentHTML("beforeend", `<em class="rtag">${esc(tag)}</em>`); pass.push(i); }
+      else { t.rows[i].classList.add("cut"); t.rows[i].insertAdjacentHTML("beforeend", `<em class="rtag no">✗ ${esc(postName || "filtered")}</em>`); }
+      await sleep(140);
+    }
+    kept = pass;
+  }
+  kept.forEach(i => t.rows[i].classList.add("picked"));
+  await sleep(500);
+  return kept.map(i => q.rows[i]);
 }
 
 // ---------- 3D map (MapLibre + deck.gl arcs and columns)
@@ -794,7 +906,7 @@ function updateMap(map, st, platforms) {
 }
 
 // ---------- process card: stepper + one panel per stage
-let memoryP = null;
+let tablesP = null;
 class RunCard {
   constructor() {
     this.dom = push(el(`<div class="run busy"><div class="steps"></div><div class="stage"><div class="wait">working</div></div></div>`));
@@ -850,7 +962,7 @@ async function play() {
   }
   playing = false; waiters.splice(0).forEach(f => f());
 }
-const DWELL = { memory: 2600, parse: 1600, search: 1400, match: 1200, filter: 1500 };
+const DWELL = { memory: 1500, parse: 1600, search: 1400, match: 1200, filter: 1500 };
 const drained = () => (!playing && !Q.length) ? Promise.resolve() : new Promise(r => waiters.push(r));
 
 async function poll(state) {
@@ -872,7 +984,7 @@ async function call(body, isNewRequest) {
   if (busy) return;
   busy = true; setDisabled(true); setLive(true);
   card = new RunCard(); curStage = null;
-  if (isNewRequest) memoryP = fetch(`${API}/memory/${USER_ID}`).then(r => r.ok ? r.json() : null).catch(() => null);
+  if (isNewRequest) tablesP = fetch(`${API}/memory/${USER_ID}/tables`).then(r => r.ok ? r.json() : null).catch(() => null);
   const state = { on: true }; const poller = poll(state);
   try {
     const res = await fetch(API + "/chat", { method: "POST", headers: { "Content-Type": "application/json" },

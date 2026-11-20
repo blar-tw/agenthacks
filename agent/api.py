@@ -195,6 +195,58 @@ def memory(user_id: str) -> dict:
     return out
 
 
+_MEMORY_TABLES = {   # the three reads load_memory makes (data/nodes.py), in the order it makes them
+    "orders": "SELECT * FROM orders WHERE user_id=%s ORDER BY ordered_at DESC LIMIT 5",
+    "preferences": "SELECT pref_id, user_id, text, kind, source, confidence, term, episode_ids, created_at "
+                   "FROM preferences WHERE user_id=%s",
+    "interactions": "SELECT * FROM interactions WHERE user_id=%s ORDER BY at DESC LIMIT 20",
+}
+_ALL_TABLES = ["users", "orders", "preferences", "interactions", "price_snapshots", "matches", "audit_events"]
+
+
+def _cell(v):
+    if isinstance(v, (bytes, bytearray)):
+        return f"<{len(v)} bytes>"
+    if hasattr(v, "isoformat"):
+        return v.isoformat()
+    return v
+
+
+@app.get("/memory/{user_id}/tables")
+def memory_tables(user_id: str, limit: int = 60) -> dict:
+    """Raw rows of the memory tables (every user, not only this one) and the size of every table,
+    so the UI can replay load_memory's queries over what is really in the database."""
+    store = _installed_store()
+    out = {"user_id": user_id, "backend": type(store).__name__, "tables": [], "queries": []}
+    rows_of = getattr(store, "_rows", None)
+    if rows_of is None:   # in-memory store: only what this process holds
+        out["queries"] = [
+            {"table": "orders", "sql": _MEMORY_TABLES["orders"], "rows": [r for rs in getattr(store, "orders", {}).values() for r in rs]},
+            {"table": "preferences", "sql": _MEMORY_TABLES["preferences"], "rows": [r for rs in getattr(store, "preferences", {}).values() for r in rs]},
+            {"table": "interactions", "sql": _MEMORY_TABLES["interactions"], "rows": [r for rs in getattr(store, "interactions", {}).values() for r in rs]},
+        ]
+        return _jsonable_rows(out)
+    for t in _ALL_TABLES:
+        try:
+            out["tables"].append({"name": t, "rows": rows_of(f"SELECT COUNT(*) AS n FROM {t}")[0]["n"]})
+        except Exception:
+            pass
+    for t, sql in _MEMORY_TABLES.items():
+        try:
+            cols = "pref_id, user_id, text, kind, source, confidence, term, episode_ids, created_at, vec" if t == "preferences" else "*"
+            rows = rows_of(f"SELECT {cols} FROM {t} LIMIT %s", (limit,))
+            out["queries"].append({"table": t, "sql": sql.replace("%s", f"'{user_id}'", 1).replace("%s", "", 1), "rows": rows})
+        except Exception as e:
+            out["queries"].append({"table": t, "sql": sql, "rows": [], "error": type(e).__name__})
+    return _jsonable_rows(out)
+
+
+def _jsonable_rows(out: dict) -> dict:
+    for q in out["queries"]:
+        q["rows"] = [{k: _cell(v) for k, v in r.items()} for r in q["rows"]]
+    return out
+
+
 @app.get("/orders/{user_id}")
 def orders(user_id: str) -> dict:
     return {"user_id": user_id, "orders": read_orders(user_id, 5)}
