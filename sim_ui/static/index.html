@@ -335,6 +335,43 @@ svg text { font-family: Inter, system-ui, sans-serif; }
   .stage { height: 320px; }
   .frow { grid-template-columns: 110px 1fr 44px; }
 }
+
+/* ---------- meal schedule (UI only) */
+.sched-btn { display: inline-flex; align-items: center; gap: 6px; }
+.sched-btn .dot-on { width: 7px; height: 7px; border-radius: 50%; background: var(--ok); }
+.modal-bg { position: fixed; inset: 0; background: rgba(0,0,0,.35); display: none; align-items: center; justify-content: center; z-index: 20; padding: 16px; }
+.modal-bg.open { display: flex; animation: fadein .2s; }
+.modal { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; box-shadow: 0 20px 60px rgba(0,0,0,.25); width: min(520px, 100%); max-height: 90vh; overflow: auto; }
+.modal header { border-bottom: 1px solid var(--border); }
+.modal .body { padding: 14px 20px 6px; display: flex; flex-direction: column; gap: 10px; }
+.meal { display: grid; grid-template-columns: 36px 1fr auto auto; gap: 10px; align-items: center; border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px; }
+.meal .ic { font-size: 22px; text-align: center; }
+.meal b { display: block; font-size: 14px; }
+.meal small { color: var(--muted); font-size: 12px; }
+.meal input[type=time] { font: inherit; font-size: 14px; border: 1px solid var(--border); border-radius: 8px; padding: 5px 8px; background: var(--surface-2); color: var(--text); }
+.meal.off { opacity: .5; }
+.switch { position: relative; width: 38px; height: 22px; border-radius: 99px; background: var(--border); border: 0; padding: 0; transition: background .2s; }
+.switch::after { content: ""; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: transform .2s; box-shadow: 0 1px 2px rgba(0,0,0,.2); }
+.switch.on { background: var(--ok); }
+.switch.on::after { transform: translateX(16px); }
+.days { display: flex; gap: 6px; flex-wrap: wrap; }
+.days button { width: 38px; height: 32px; border-radius: 8px; border: 1px solid var(--border); background: none; color: var(--muted); font-size: 12.5px; }
+.days button.on { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.modal .row2 { display: flex; justify-content: space-between; align-items: center; gap: 10px; font-size: 13px; }
+.modal footer { display: flex; gap: 8px; justify-content: flex-end; padding: 12px 20px 16px; }
+.mealpop { position: fixed; right: 410px; bottom: 96px; width: 340px; background: var(--surface); border: 1px solid var(--border); border-radius: 16px; box-shadow: 0 18px 50px rgba(0,0,0,.22); z-index: 15; overflow: hidden; transform: translateY(30px) scale(.96); opacity: 0; pointer-events: none; transition: transform .35s cubic-bezier(.2,1.4,.4,1), opacity .25s; }
+.mealpop.show { transform: none; opacity: 1; pointer-events: auto; }
+.mealpop .top { background: var(--accent); color: var(--accent-ink); padding: 12px 16px; display: flex; align-items: center; gap: 10px; }
+.mealpop .top .big { font-size: 28px; animation: wiggle 1.2s ease-in-out infinite; }
+@keyframes wiggle { 0%, 100% { transform: rotate(0); } 25% { transform: rotate(-14deg); } 75% { transform: rotate(14deg); } }
+.mealpop .top b { display: block; font-size: 16px; }
+.mealpop .top small { opacity: .85; font-size: 12px; }
+.mealpop .x { margin-left: auto; background: none; border: 0; color: inherit; font-size: 18px; opacity: .8; }
+.mealpop .in { padding: 12px 16px 14px; display: flex; flex-direction: column; gap: 10px; }
+.mealpop .sugg { border: 1px solid var(--border); border-radius: 10px; padding: 9px 11px; font-size: 13px; background: var(--surface-2); }
+.mealpop .sugg em { font-style: normal; color: var(--mem); font-size: 11px; display: block; margin-bottom: 2px; }
+.mealpop .acts { display: flex; gap: 8px; }
+@media (max-width: 900px) { .mealpop { right: 16px; left: 16px; width: auto; bottom: 90px; } }
 </style>
 </head>
 <body>
@@ -345,6 +382,7 @@ svg text { font-family: Inter, system-ui, sans-serif; }
       <div><h1>MealMatch</h1><div class="sub">Uber Eats vs DoorDash, verified. You pay.</div></div>
       <div class="spacer"></div>
       <span class="pill" id="conn">connecting</span>
+      <button class="icon-btn sched-btn" id="schedBtn" title="Meal schedule"><span class="dot-on" id="schedDot"></span>⏰ Schedule</button>
       <button class="icon-btn audit-toggle" id="auditToggle">Audit</button>
       <button class="icon-btn" id="newChat" title="Start over">New</button>
     </header>
@@ -384,6 +422,27 @@ svg text { font-family: Inter, system-ui, sans-serif; }
   </aside>
 </div>
 
+
+<div class="modal-bg" id="schedModal">
+  <div class="modal" role="dialog" aria-label="Meal schedule">
+    <header><div class="logo">⏰</div><div><h1>Meal schedule</h1><div class="sub">MealMatch pops up at meal time with a pick from your memory</div></div><div class="spacer"></div><button class="icon-btn" id="schedClose">✕</button></header>
+    <div class="body">
+      <div id="meals"></div>
+      <div class="row2"><span class="fine">Days</span><div class="days" id="days"></div></div>
+      <div class="row2"><span>Suggest from my memory (orders, liked dishes, budget)</span><button class="switch on" id="swMemory" aria-label="suggest from memory"></button></div>
+      <div class="row2"><span>Notify on this device</span><button class="switch on" id="swNotify" aria-label="notify"></button></div>
+      <p class="fine" style="margin:0">Nothing is ordered without your yes. The reminder only starts a search.</p>
+    </div>
+    <footer><button class="btn" id="schedPreview">Preview reminder</button><button class="btn primary" style="flex:none" id="schedSave">Save</button></footer>
+  </div>
+</div>
+<div class="mealpop" id="mealPop" role="alert">
+  <div class="top"><span class="big" id="popIcon">🍜</span><div><b id="popTitle">Lunch time!</b><small id="popSub">12:30 · your schedule</small></div><button class="x" id="popX" aria-label="dismiss">✕</button></div>
+  <div class="in">
+    <div class="sugg"><em>From your memory</em><span id="popSugg">Spicy noodles for two under $40, no mushrooms</span></div>
+    <div class="acts"><button class="btn primary" id="popGo">Find it now</button><button class="btn" id="popSnooze">Snooze 15 min</button></div>
+  </div>
+</div>
 <script>
 // Agent endpoint. Same origin by default; override with ?api=http://host:port
 const API = new URLSearchParams(location.search).get("api") || "";
@@ -1244,6 +1303,64 @@ document.querySelectorAll(".suggest button").forEach(b => b.onclick = () => { sa
 $("#newChat").onclick = () => location.reload();
 $("#auditToggle").onclick = () => $("#audit").classList.toggle("open");
 
+
+// ---------- meal schedule (UI only: no backend; saved in this browser)
+const MEALS = [
+  { id: "breakfast", icon: "🥐", name: "Breakfast", time: "08:30", on: false, sugg: "Something light for one under $15" },
+  { id: "lunch", icon: "🍜", name: "Lunch", time: "12:30", on: true, sugg: "Spicy noodles for one under $20, no mushrooms" },
+  { id: "dinner", icon: "🥢", name: "Dinner", time: "19:00", on: true, sugg: "Spicy Chinese food for two under $40, no mushrooms" },
+];
+const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+let sched = { meals: MEALS, days: [0, 1, 2, 3, 4], memory: true, notify: true };
+try { const saved = JSON.parse(localStorage.getItem("mm_sched") || "null"); if (saved?.meals) sched = saved; } catch {}
+function drawSched() {
+  $("#meals").innerHTML = sched.meals.map((m, i) => `<div class="meal ${m.on ? "" : "off"}" data-i="${i}">
+    <span class="ic">${m.icon}</span><div><b>${esc(m.name)}</b><small>${esc(m.sugg)}</small></div>
+    <input type="time" value="${esc(m.time)}" aria-label="${esc(m.name)} time"><button class="switch ${m.on ? "on" : ""}" aria-label="${esc(m.name)} on"></button></div>`).join("");
+  $("#meals").querySelectorAll(".meal").forEach(row => {
+    const m = sched.meals[+row.dataset.i];
+    row.querySelector(".switch").onclick = () => { m.on = !m.on; drawSched(); };
+    row.querySelector("input").onchange = e => { m.time = e.target.value; };
+  });
+  $("#days").innerHTML = DAYS.map((d, i) => `<button class="${sched.days.includes(i) ? "on" : ""}" data-d="${i}">${d}</button>`).join("");
+  $("#days").querySelectorAll("button").forEach(b => b.onclick = () => {
+    const d = +b.dataset.d; sched.days = sched.days.includes(d) ? sched.days.filter(x => x !== d) : [...sched.days, d]; drawSched(); });
+  $("#swMemory").classList.toggle("on", sched.memory); $("#swNotify").classList.toggle("on", sched.notify);
+  $("#schedDot").style.display = sched.meals.some(m => m.on) && sched.notify ? "" : "none";
+}
+$("#swMemory").onclick = () => { sched.memory = !sched.memory; drawSched(); };
+$("#swNotify").onclick = () => { sched.notify = !sched.notify; drawSched(); };
+$("#schedBtn").onclick = () => { drawSched(); $("#schedModal").classList.add("open"); };
+$("#schedClose").onclick = () => $("#schedModal").classList.remove("open");
+$("#schedModal").onclick = e => { if (e.target.id === "schedModal") $("#schedModal").classList.remove("open"); };
+$("#schedSave").onclick = () => { try { localStorage.setItem("mm_sched", JSON.stringify(sched)); } catch {} $("#schedModal").classList.remove("open"); drawSched(); };
+let popMeal = null;
+function showMealPop(m) {
+  popMeal = m;
+  $("#popIcon").textContent = m.icon; $("#popTitle").textContent = `${m.name} time!`;
+  $("#popSub").textContent = `${m.time} · your schedule`; $("#popSugg").textContent = m.sugg;
+  $("#mealPop").classList.add("show");
+}
+const hideMealPop = () => $("#mealPop").classList.remove("show");
+$("#popX").onclick = hideMealPop;
+$("#popSnooze").onclick = () => { hideMealPop(); const m = popMeal; setTimeout(() => showMealPop(m), 15 * 60 * 1000); };
+$("#popGo").onclick = () => { hideMealPop(); $("#input").value = popMeal?.sugg || ""; $("#input").focus(); };
+$("#schedPreview").onclick = () => {
+  $("#schedModal").classList.remove("open");
+  const now = new Date(), mins = now.getHours() * 60 + now.getMinutes();
+  const on = sched.meals.filter(m => m.on);
+  const next = on.find(m => { const [h, mm] = m.time.split(":").map(Number); return h * 60 + mm >= mins; }) || on[0] || sched.meals[1];
+  setTimeout(() => showMealPop(next), 250);
+};
+const shownToday = new Set();
+setInterval(() => {   // pop up when the clock reaches an enabled meal time on a selected day
+  if (!sched.notify) return;
+  const now = new Date(), hm = now.toTimeString().slice(0, 5), day = (now.getDay() + 6) % 7;
+  if (!sched.days.includes(day)) return;
+  const m = sched.meals.find(x => x.on && x.time === hm), key = m && `${now.toDateString()}|${m.id}`;
+  if (m && !shownToday.has(key)) { shownToday.add(key); showMealPop(m); }
+}, 20000);
+drawSched();
 let STATSIG = false;
 fetch(API + "/places").then(r => r.json()).then(d => { if (d.places?.length) RESTAURANTS = d.places.map(p => ({ key: p.key, name: p.name, pos: [p.lng, p.lat], both: p.platforms.length > 1, platforms: p.platforms })); }).catch(() => {});
 fetch(API + "/health").then(r => r.json()).then(h => { setConn(true); STATSIG = !!(h.statsig?.installed && !h.statsig?.error); }).catch(() => setConn(false));
