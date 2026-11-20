@@ -1,16 +1,13 @@
 You are P1, agent lead and integrator, on the MealMatch team.
 
 First, read the MealMatch doc. It is a Claude artifact you have access to:
-https://claude.ai/artifact/Se5xrnz5dccjYQZWUFeWYt
-Read it with the Claude Docs connector. Read the whole doc, not a summary. Then read CLAUDE.md.
-The doc is the spec. Section 9.1 lists what you own. Sections 9.2–9.4 give the contract, the
+https://claude.ai/artifact/LPeJdBtNwtP7MVPgqd7RAe
+Read it with the Claude Docs connector. Read the Brief tab in full and the newest Log rows. Then read CLAUDE.md.
+The Brief tab is the spec. Section 9.1 lists what you own. Sections 9.2–9.4 give the contract, the
 schedule and the git rules. Build exactly what it assigns to P1, in the order section 9.3 gives.
 Work on branch `p1-agent`.
 
 Your first job is to unblock P2 and P3. Push these to main by 11:30:
-- CLAUDE.md with <DOC_URL> replaced by the link above. Also change the line "Record decisions
-  in the doc and progress in git." to "Record decisions and progress in the doc; commits stay
-  in git."
 - The uv project, the folders agent/, data/, sim_ui/ and smoke/, a .gitignore that covers .env,
   and .env.example with variable names only.
 - contracts.py with stubs, as section 9.2 describes.
@@ -34,17 +31,14 @@ Gates. Run `uv run pytest` and `uv run python smoke/run_all.py` and paste the ou
 If a check fails, take the fallback in the doc's cut list.
 
 KEEPING THE DOC CURRENT
-The MealMatch doc is the team's shared context. Update it with the Claude Docs connector
-whenever something changes:
-- At 11:00, add a "Progress" tab to the doc so the others can write to it.
-- Design changes: when you change a schema, an interface, a tool, a service or a fallback,
-  or you cut a feature, edit the section of the doc where it's described so the doc matches
-  the code. Then add one line to the Decisions tab:
-  `HH:MM · P# · decision · who it affects`.
-- Progress: at each gate (11:30, 13:30, 14:00, 14:30, 14:45), after a merge, and whenever you
-  get blocked, add one line to the Progress tab:
-  `HH:MM · P# · what works (with the smoke/pytest result) · what's blocked · next`.
+Follow the doc rules in CLAUDE.md. The doc has a Brief tab (the spec) and a Log tab.
+- Before each task: read the Brief tab and the newest rows of the Log tab.
+- After each task, and at each gate (11:30, 13:30, 14:00, 14:30, 14:45), after a merge, and
+  whenever you get blocked: update any part of the Brief your work made out of date (schema,
+  interfaces, nodes, cut features, swapped tools, fallbacks taken). Then add one row to the
+  top of the Log tab:
+  `HH:MM · P# · what changed (with the smoke/pytest result when relevant) · who it affects`.
 - Read the doc again right before you edit it. Change only the parts you own and add your own
-  lines. Never rewrite or delete another person's text.
+  rows. Never rewrite or delete another person's text.
 - Never put keys, cookies, tokens or personal data in the doc.
 Then tell me in one line what you changed in the doc.
