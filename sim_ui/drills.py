@@ -26,7 +26,6 @@ if str(REPO) not in sys.path:
     sys.path.insert(0, str(REPO))
 
 DATA_DIRS = {"test": REPO / "tests" / "fixtures", "real": REPO / "data" / "fixtures"}
-MUSHROOM = re.compile(r"mushroom|shiitake|enoki|portobello|cremini|wood ear|morel|truffle", re.I)
 
 
 # ---------------------------------------------------------------- sim tools
@@ -34,7 +33,7 @@ MUSHROOM = re.compile(r"mushroom|shiitake|enoki|portobello|cremini|wood ear|more
 def _shop(world: Any, operation: str, arguments: dict, key: str) -> dict:
     """One call to the synthetic shop through the drill's direct binding."""
     rec = world.invoke({"packageId": "shop", "operationId": operation}, arguments, idempotency_key=key)
-    outcome = rec.get("outcome", rec) if hasattr(rec, "get") else rec
+    outcome = rec.get("outcome", rec)
     if outcome.get("status") not in (None, "ok"):
         raise RuntimeError(f"shop {operation} failed: {outcome.get('status')}")
     return dict(outcome.get("value", outcome) or {})
@@ -84,7 +83,10 @@ def converse(thread: str, turns: list[str], tools: Any) -> dict:
     """Run the scripted turns through the agent and return what the conversation showed."""
     import contracts as c
     from agent.graph import chat
+    from data.rank import EXCLUSION_TERMS
     from smoke.audit_integrity import check_run
+
+    mushroom = re.compile("|".join(map(re.escape, EXCLUSION_TERMS["mushroom"])), re.I)
 
     shown: list[dict] = []
     selected: str | None = None
@@ -123,11 +125,9 @@ def converse(thread: str, turns: list[str], tools: Any) -> dict:
     return {
         "status": out.get("status", ""),
         "has_options": bool(last),
-        "option_count": len(last),
-        "max_total_seen": max(totals) if totals else 0,
         "within_budget": all(t <= 40 for t in totals),
         "last_within_35": bool(last) and all(o["total"] <= 35 for o in last),
-        "hard_rule_kept": not any(MUSHROOM.search(o["item"]) for o in seen),
+        "hard_rule_kept": not any(mushroom.search(o["item"]) for o in seen),
         "doordash_shown": any(o["platform"] == "doordash" for o in seen),
         "rejected_reappeared": reappeared,
         "said_stopped": "stopped before checkout" in text_all,
@@ -168,13 +168,18 @@ def run(drill: str | None = None, data: str = "test", ranker: str | None = None,
     from agent import graph
     from data import config as data_config
 
+    saved = (data_config.FIXTURES, graph._ranker_provider)
     data_config.FIXTURES = DATA_DIRS[data]
     if ranker:
         graph.set_ranker_provider(lambda user_id: ranker)
     kwargs: dict[str, Any] = {"concurrency": 1}
     if tags:
         kwargs["tags"] = tags
-    return run_drills(root=str(ROOT), drill=drill, agent=invoke, **kwargs)
+    try:
+        return run_drills(root=str(ROOT), drill=drill, agent=invoke, **kwargs)
+    finally:   # leave the menus and the ranker as the caller had them
+        data_config.FIXTURES, provider = saved
+        graph.set_ranker_provider(provider)
 
 
 def summarize(result: Any) -> tuple[bool, list[str]]:

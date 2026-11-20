@@ -22,3 +22,11 @@ def test_a_drill_catches_a_submit_without_a_plain_yes(monkeypatch):
     ok, lines = drills.summarize(result)
     assert not ok
     assert any("submits" in line for line in lines), lines
+
+
+def test_run_restores_the_menus_and_ranker():
+    from agent import graph
+    from data import config
+    before = (config.FIXTURES, graph._ranker_provider)
+    drills.run(drill="happy-path", data="real", ranker="price")
+    assert (config.FIXTURES, graph._ranker_provider) == before
