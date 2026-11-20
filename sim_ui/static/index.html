@@ -1,0 +1,423 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MealMatch</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #f6f5f2; --surface: #ffffff; --surface-2: #f0eee9; --border: #e3e0d8;
+  --text: #1d1b17; --muted: #6b665c; --accent: #d9480f; --accent-ink: #ffffff;
+  --ok: #2b8a3e; --warn: #c27c0e; --bad: #c92a2a;
+  --k-evidence: #1971c2; --k-inference: #7048e8; --k-action: #d9480f; --k-approval: #2b8a3e;
+  --ue: #06c167; --dd: #eb1700;
+  --shadow: 0 1px 2px rgba(0,0,0,.04), 0 4px 16px rgba(0,0,0,.05);
+  --radius: 14px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #14130f; --surface: #1d1c18; --surface-2: #26241f; --border: #34312a;
+    --text: #f1eee7; --muted: #a39d90; --accent: #ff6b2c; --accent-ink: #14130f;
+    --ok: #51cf66; --warn: #fcc419; --bad: #ff6b6b;
+    --k-evidence: #4dabf7; --k-inference: #9775fa; --k-action: #ff8a4c; --k-approval: #51cf66;
+    --shadow: 0 1px 2px rgba(0,0,0,.3), 0 4px 16px rgba(0,0,0,.25);
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #14130f; --surface: #1d1c18; --surface-2: #26241f; --border: #34312a;
+  --text: #f1eee7; --muted: #a39d90; --accent: #ff6b2c; --accent-ink: #14130f;
+  --ok: #51cf66; --warn: #fcc419; --bad: #ff6b6b;
+  --k-evidence: #4dabf7; --k-inference: #9775fa; --k-action: #ff8a4c; --k-approval: #51cf66;
+  --shadow: 0 1px 2px rgba(0,0,0,.3), 0 4px 16px rgba(0,0,0,.25);
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body { background: var(--bg); color: var(--text); font: 15px/1.5 Inter, system-ui, sans-serif; }
+button { font: inherit; cursor: pointer; }
+.mono { font-family: "JetBrains Mono", ui-monospace, monospace; }
+
+.app { display: grid; grid-template-columns: minmax(0, 1fr) 400px; height: 100vh; }
+header { display: flex; align-items: center; gap: 10px; padding: 14px 20px; border-bottom: 1px solid var(--border); }
+.logo { width: 30px; height: 30px; border-radius: 9px; background: var(--accent); color: var(--accent-ink);
+        display: grid; place-items: center; font-weight: 700; }
+header h1 { font-size: 17px; margin: 0; font-weight: 700; }
+header .sub { color: var(--muted); font-size: 13px; }
+header .spacer { flex: 1; }
+.pill { white-space: nowrap; font-size: 12px; padding: 3px 9px; border-radius: 99px; background: var(--surface-2); color: var(--muted); border: 1px solid var(--border); }
+.pill.live::before { content: "● "; color: var(--ok); }
+.pill.down::before { content: "● "; color: var(--bad); }
+.icon-btn { background: none; border: 1px solid var(--border); color: var(--text); border-radius: 8px; padding: 5px 10px; font-size: 13px; }
+
+/* chat column */
+.main { display: flex; flex-direction: column; min-height: 0; }
+.thread { flex: 1; overflow-y: auto; padding: 24px 20px; }
+.thread-inner { max-width: 760px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; }
+.msg { max-width: 85%; padding: 10px 14px; border-radius: var(--radius); white-space: pre-wrap; }
+.msg.user { align-self: flex-end; background: var(--accent); color: var(--accent-ink); border-bottom-right-radius: 4px; }
+.msg.agent { align-self: flex-start; background: var(--surface); border: 1px solid var(--border); border-bottom-left-radius: 4px; }
+.msg.error { align-self: flex-start; color: var(--bad); background: none; border: 1px dashed var(--bad); }
+
+.empty { text-align: center; padding: 8vh 0 0; }
+.empty h2 { font-size: 26px; margin: 0 0 6px; letter-spacing: -.02em; }
+.empty p { color: var(--muted); margin: 0 0 20px; }
+.suggest { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
+.suggest button { background: var(--surface); border: 1px solid var(--border); color: var(--text); padding: 8px 14px; border-radius: 99px; }
+.suggest button:hover { border-color: var(--accent); }
+
+.constraints { display: flex; flex-wrap: wrap; gap: 6px; align-self: flex-start; }
+.constraints .pill b { color: var(--text); font-weight: 600; }
+
+/* option cards */
+.options { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); padding: 14px; display: flex; flex-direction: column; gap: 8px; }
+.card.best { border-color: var(--accent); }
+.card .top { display: flex; align-items: center; gap: 6px; font-size: 12px; }
+.plat { font-weight: 600; padding: 2px 8px; border-radius: 6px; color: #fff; font-size: 11px; }
+.plat.ubereats { background: var(--ue); color: #04120a; }
+.plat.doordash { background: var(--dd); }
+.badge-best { margin-left: auto; color: var(--accent); font-weight: 600; }
+.card h3 { margin: 0; font-size: 16px; line-height: 1.3; }
+.card .rest { color: var(--muted); font-size: 13px; margin-top: -6px; }
+.price { font-size: 24px; font-weight: 700; letter-spacing: -.02em; }
+.price small { font-size: 13px; color: var(--muted); font-weight: 500; }
+.reasons { list-style: none; padding: 0; margin: 0; font-size: 13px; display: flex; flex-direction: column; gap: 4px; }
+.reasons li { display: flex; gap: 6px; align-items: baseline; flex-wrap: wrap; }
+.cite { font-size: 10.5px; border: 1px solid var(--k-evidence); color: var(--k-evidence); background: none; border-radius: 5px; padding: 0 5px; line-height: 17px; }
+.cite:hover { background: var(--k-evidence); color: var(--surface); }
+.card .actions { display: flex; gap: 8px; margin-top: auto; padding-top: 6px; }
+.btn { border: 1px solid var(--border); background: var(--surface-2); color: var(--text); border-radius: 9px; padding: 8px 12px; font-weight: 500; font-size: 14px; }
+.btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); flex: 1; }
+.btn.ok { background: var(--ok); color: #fff; border-color: var(--ok); flex: 1; }
+.btn:disabled { opacity: .45; cursor: default; }
+.btn:not(:disabled):hover { filter: brightness(1.05); }
+
+/* cart */
+.cart { max-width: 440px; }
+.cart table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.cart td { padding: 4px 0; }
+.cart td:last-child { text-align: right; font-variant-numeric: tabular-nums; }
+.cart tr.total td { border-top: 1px solid var(--border); padding-top: 8px; font-weight: 700; font-size: 16px; }
+.check { display: flex; gap: 8px; align-items: center; font-size: 13px; padding: 8px 10px; border-radius: 9px; }
+.check.ok { background: color-mix(in srgb, var(--ok) 12%, transparent); color: var(--ok); }
+.check.warn { background: color-mix(in srgb, var(--warn) 14%, transparent); color: var(--warn); }
+.handoff { display: inline-flex; align-items: center; gap: 8px; background: var(--accent); color: var(--accent-ink);
+           text-decoration: none; font-weight: 600; padding: 12px 18px; border-radius: 11px; align-self: flex-start; }
+.fine { font-size: 12px; color: var(--muted); }
+
+/* composer */
+.composer { padding: 14px 20px 18px; border-top: 1px solid var(--border); background: var(--bg); }
+.composer form { max-width: 760px; margin: 0 auto; display: flex; gap: 8px; }
+.composer input { flex: 1; min-width: 0; font: inherit; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--border); background: var(--surface); color: var(--text); outline: none; }
+.composer input:focus { border-color: var(--accent); }
+.typing { color: var(--muted); font-size: 13px; align-self: flex-start; }
+.typing::after { content: "…"; animation: dots 1s steps(3) infinite; }
+@keyframes dots { 0% { content: "."; } 33% { content: ".."; } 66% { content: "..."; } }
+
+/* audit panel */
+.audit { border-left: 1px solid var(--border); background: var(--surface); display: flex; flex-direction: column; min-height: 0; }
+.audit-head { padding: 16px 18px 10px; border-bottom: 1px solid var(--border); }
+.audit-head h2 { margin: 0; font-size: 15px; }
+.audit-head .fine { margin-top: 2px; }
+.filters { display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap; }
+.filters button { font-size: 12px; border: 1px solid var(--border); background: none; color: var(--muted); border-radius: 99px; padding: 2px 10px; }
+.filters button.on { color: var(--text); border-color: currentColor; }
+.filters button[data-k] .dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 5px; }
+.events { flex: 1; overflow-y: auto; padding: 10px 12px 20px; }
+.node-label { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 14px 6px 6px; }
+.ev { border-left: 3px solid var(--k); padding: 6px 10px; margin: 0 0 6px; border-radius: 0 8px 8px 0; background: var(--surface-2); font-size: 12.5px; transition: box-shadow .3s; }
+.ev.flash { box-shadow: 0 0 0 2px var(--k); }
+.ev .row { display: flex; gap: 6px; align-items: center; }
+.ev .kind { color: var(--k); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; }
+.ev .id { color: var(--muted); font-size: 10.5px; margin-left: auto; }
+.ev .body { margin-top: 2px; word-break: break-word; }
+.ev .cites { margin-top: 4px; display: flex; gap: 4px; flex-wrap: wrap; }
+.ev a { color: var(--k-evidence); }
+.k-evidence { --k: var(--k-evidence); } .k-inference { --k: var(--k-inference); }
+.k-action { --k: var(--k-action); } .k-approval { --k: var(--k-approval); }
+.audit-toggle { display: none; }
+
+@media (max-width: 900px) {
+  .app { grid-template-columns: 1fr; }
+  .audit { position: fixed; inset: auto 0 0 0; height: 70vh; transform: translateY(100%); transition: transform .25s;
+           border-left: 0; border-top: 1px solid var(--border); border-radius: 16px 16px 0 0; box-shadow: var(--shadow); z-index: 5; }
+  .audit.open { transform: none; }
+  .audit-toggle { display: inline-block; }
+  header, .thread, .composer { padding-left: 16px; padding-right: 16px; }
+  header .sub { display: none; }
+  .msg { max-width: 92%; }
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <section class="main">
+    <header>
+      <div class="logo">M</div>
+      <div><h1>MealMatch</h1><div class="sub">Uber Eats vs DoorDash, verified. You pay.</div></div>
+      <div class="spacer"></div>
+      <span class="pill" id="conn">connecting</span>
+      <button class="icon-btn audit-toggle" id="auditToggle">Audit</button>
+      <button class="icon-btn" id="newChat" title="Start over">New</button>
+    </header>
+    <div class="thread" id="thread"><div class="thread-inner" id="feed">
+      <div class="empty" id="empty">
+        <h2>What are you hungry for?</h2>
+        <p>Tell me the dish, budget and who's eating. I'll compare both apps and show my evidence.</p>
+        <div class="suggest">
+          <button>Spicy noodles for 2 under $40, no pork</button>
+          <button>Dan dan noodles, fastest delivery</button>
+          <button>Something spicy under $20 in 35 min</button>
+        </div>
+      </div>
+    </div></div>
+    <div class="composer">
+      <form id="form" autocomplete="off">
+        <input id="input" placeholder="e.g. spicy noodles for 2 under $40, no pork">
+        <button class="btn primary" style="flex:none" id="send">Send</button>
+      </form>
+    </div>
+  </section>
+
+  <aside class="audit" id="audit">
+    <div class="audit-head">
+      <h2>Audit trail</h2>
+      <div class="fine" id="runInfo">Every fact, conclusion, action and approval for this run.</div>
+      <div class="filters" id="filters">
+        <button class="on" data-k="all">All</button>
+        <button class="on" data-k="evidence"><span class="dot" style="background:var(--k-evidence)"></span>Evidence</button>
+        <button class="on" data-k="inference"><span class="dot" style="background:var(--k-inference)"></span>Inference</button>
+        <button class="on" data-k="action"><span class="dot" style="background:var(--k-action)"></span>Action</button>
+        <button class="on" data-k="approval"><span class="dot" style="background:var(--k-approval)"></span>Approval</button>
+      </div>
+    </div>
+    <div class="events" id="events"><p class="fine" style="padding:8px">Nothing yet. Send a request to start a run.</p></div>
+  </aside>
+</div>
+
+<script>
+// Agent endpoint. Same origin by default; override with ?api=http://host:port
+const API = new URLSearchParams(location.search).get("api") || "";
+const USER_ID = "demo";
+const PLAT = { ubereats: "Uber Eats", doordash: "DoorDash" };
+
+let threadId = null, last = null, busy = false;
+const shown = { evidence: true, inference: true, action: true, approval: true };
+
+const $ = (s, el = document) => el.querySelector(s);
+const feed = $("#feed"), threadEl = $("#thread");
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const money = n => n == null ? "–" : "$" + Number(n).toFixed(2);
+const short = id => (id || "").slice(-6);
+
+function el(html) { const t = document.createElement("template"); t.innerHTML = html.trim(); return t.content.firstElementChild; }
+function push(node) { $("#empty")?.remove(); feed.appendChild(node); threadEl.scrollTop = threadEl.scrollHeight; return node; }
+function say(role, text) { return push(el(`<div class="msg ${role}">${esc(text)}</div>`)); }
+function cites(ids) { return (ids || []).filter(Boolean).map(id => `<button class="cite mono" data-ev="${esc(id)}" title="Show evidence ${esc(id)}">${esc(short(id))}</button>`).join(""); }
+
+async function call(body) {
+  if (busy) return;
+  busy = true; setDisabled(true);
+  const typing = push(el(`<div class="typing">MealMatch is checking both apps</div>`));
+  try {
+    const res = await fetch(API + "/chat", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ thread_id: threadId, user_id: USER_ID, ...body }) });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.detail || `HTTP ${res.status}`);
+    setConn(true);
+    threadId = data.thread_id; last = data;
+    typing.remove();
+    render(data);
+  } catch (e) {
+    typing.remove();
+    say("error", "Couldn't reach the agent: " + e.message);
+    setConn(false);
+  } finally { busy = false; setDisabled(false); }
+}
+
+function setDisabled(d) { document.querySelectorAll(".btn, #input").forEach(b => { if (!b.dataset.done) b.disabled = d; }); }
+function setConn(ok) { const c = $("#conn"); c.className = "pill " + (ok ? "live" : "down"); c.textContent = ok ? "agent online" : "agent offline"; }
+function retire(sel) { feed.querySelectorAll(sel).forEach(b => { b.disabled = true; b.dataset.done = "1"; }); }
+
+function render(d) {
+  retire(".card .btn");
+  if (d.constraints && d.status === "awaiting_selection") renderConstraints(d.constraints);
+  if (d.reply) say("agent", d.reply);
+  if (d.status === "awaiting_selection" && d.ranked?.length) renderOptions(d.ranked);
+  if (d.status === "awaiting_approval" && d.quote) renderCart(d.quote, d.quote_ok, d.cart);
+  if (d.status === "done" && d.handoff_url) renderHandoff(d);
+  renderAudit(d.audit || [], d.run_id);
+}
+
+function renderConstraints(c) {
+  const bits = [];
+  if (c.dish_query) bits.push(["dish", c.dish_query]);
+  if (c.people > 1) bits.push(["people", c.people]);
+  if (c.budget_total) bits.push(["budget", money(c.budget_total)]);
+  if (c.max_eta_min) bits.push(["max", c.max_eta_min + " min"]);
+  (c.hard_excludes || []).forEach(x => bits.push(["no", x]));
+  if (!bits.length) return;
+  push(el(`<div class="constraints">${bits.map(([k, v]) => `<span class="pill">${esc(k)} <b>${esc(v)}</b></span>`).join("")}</div>`));
+}
+
+function renderOptions(ranked) {
+  const wrap = el(`<div class="options"></div>`);
+  ranked.forEach((r, i) => {
+    const o = r.offer, total = r.total ?? -r.score;  // the reranker's score is not a price
+    const card = el(`<div class="card ${i === 0 ? "best" : ""}">
+      <div class="top"><span class="plat ${esc(o.source)}">${esc(PLAT[o.source] || o.source)}</span>
+        ${o.eta_min ? `<span class="fine">${o.eta_min} min</span>` : ""}
+        ${i === 0 ? `<span class="badge-best">Best pick</span>` : ""}</div>
+      <h3>${esc(o.item)}</h3>
+      <div class="rest">${esc(o.restaurant)}</div>
+      <div class="price">${money(total)} <small>with fees</small></div>
+      <ul class="reasons">${(r.reasons || []).map(x => `<li><span>${esc(x.text)}</span>${cites(x.evidence_ids)}</li>`).join("")}</ul>
+      <div class="actions">
+        <button class="btn primary" data-act="select">Choose</button>
+        <button class="btn" data-act="reject" title="Hide this one and re-rank">Not this</button>
+      </div></div>`);
+    card.querySelector('[data-act="select"]').onclick = () => { say("user", `${o.item} from ${o.restaurant} on ${PLAT[o.source]}`); call({ action: { type: "select", offer_id: o.offer_id } }); };
+    card.querySelector('[data-act="reject"]').onclick = () => {
+      const reason = prompt("What's wrong with it? (optional)") ?? null;
+      if (reason === null) return;
+      say("user", `Not ${o.item}${reason ? ": " + reason : ""}`);
+      call({ action: { type: "reject", offer_id: o.offer_id, reason } });
+    };
+    wrap.appendChild(card);
+  });
+  push(wrap);
+}
+
+function renderCart(q, ok, cart) {
+  const drift = cart && cart.total ? ((q.total - cart.total) / cart.total * 100) : 0;
+  const card = el(`<div class="card cart">
+    <div class="top"><span class="plat ${esc(q.platform)}">${esc(PLAT[q.platform] || q.platform)}</span>
+      <span class="fine">${esc(q.restaurant)}${q.address_label ? " · to " + esc(q.address_label) : ""}</span></div>
+    <table>
+      ${q.lines.map(l => `<tr><td>${l.qty} × ${esc(l.item)}</td><td>${money(l.qty * l.unit_price)}</td></tr>`).join("")}
+      <tr><td class="fine">Delivery + service fees</td><td>${money(q.fees)}</td></tr>
+      <tr class="total"><td>Live quote</td><td>${money(q.total)}</td></tr>
+    </table>
+    <div class="check ${ok ? "ok" : "warn"}">${ok
+      ? `✓ Quote matches the ranked price${Math.abs(drift) > .05 ? ` (${drift > 0 ? "+" : ""}${drift.toFixed(1)}%)` : ""}`
+      : `⚠ Quote is ${drift.toFixed(1)}% off the ranked price or over budget`}</div>
+    <div class="actions">
+      <button class="btn ok" data-act="approve">Approve ${money(q.total)}</button>
+      <button class="btn" data-act="decline">Decline</button>
+    </div>
+    <div class="fine">Approving creates a checkout link. You pay on ${esc(PLAT[q.platform])}; MealMatch never sees your card.</div>
+  </div>`);
+  card.querySelector('[data-act="approve"]').onclick = () => { say("user", "Approve"); call({ action: { type: "approve" } }); };
+  card.querySelector('[data-act="decline"]').onclick = () => { say("user", "Decline"); call({ action: { type: "decline" } }); };
+  push(card);
+}
+
+function renderHandoff(d) {
+  const p = d.quote?.platform;
+  push(el(`<a class="handoff" href="${esc(d.handoff_url)}" target="_blank" rel="noopener">Open ${esc(PLAT[p] || "checkout")} to pay ${money(d.quote?.total)} →</a>`));
+}
+
+// ---------- audit panel
+const list = (xs, n = 3) => (xs || []).slice(0, n).map(esc).join(", ") + ((xs || []).length > n ? ` +${xs.length - n} more` : "");
+
+// Payload shapes written by the real agent (agent/ + data/); the mock's shapes follow below.
+function realSummary(e) {
+  const p = e.payload || {};
+  if (p.what === "memory read from the store") return `Read memory: ${(p.order_ids || []).length} past orders, ${(p.hard_rules || []).length} hard rules${p.hard_rules?.length ? ` (${list(p.hard_rules)})` : ""}`;
+  if (p.request_text) return `Request: “${esc(p.request_text)}”`;
+  if (p.constraints) { const c = p.constraints; return `Parsed: ${[c.dish_query && `dish=${esc(c.dish_query)}`, c.cuisine && `cuisine=${esc(c.cuisine)}`, c.people && `people=${c.people}`, c.budget_total && `budget=${money(c.budget_total)}`, c.max_eta_min && `max=${c.max_eta_min} min`, c.hard_excludes?.length && `no ${list(c.hard_excludes)}`].filter(Boolean).join(", ")}`; }
+  if (e.kind === "evidence" && p.platform && p.offers != null && !p.error) return `Searched ${esc(PLAT[p.platform] || p.platform)} (${esc(p.mode)}): <b>${p.offers}</b> dishes`;
+  if (p.what === "same dish on both platforms") return `Same dish: ${esc(p.ubereats_item)} ≈ ${esc(p.doordash_item)} at ${esc(p.restaurant)} (${Math.round(p.confidence * 100)}%, ${esc(p.method)})`;
+  if (p.what === "matching fallback") return `Matching fallback: ${esc(p.note)}`;
+  if (p.what === "removed options that break a rule") { const why = {}; (p.removed || []).forEach(x => why[x.reason.split(" (")[0].split(":")[0]] = (why[x.reason.split(" (")[0].split(":")[0]] || 0) + 1);
+    return `Kept <b>${p.kept}</b>, removed ${(p.removed || []).length}${Object.keys(why).length ? ": " + Object.entries(why).map(([r, n]) => `${n} ${esc(r)}`).join(", ") : ""}`; }
+  if (p.what === "ranked options") return `Ranked by ${esc(p.ranker)}${p.requested_ranker && p.requested_ranker !== p.ranker ? ` (asked: ${esc(p.requested_ranker)})` : ""}: ${(p.top || []).slice(0, 3).map(t => `${esc(t.item)} ${money(t.est_total)}`).join(" › ")}`;
+  if (p.summary && p.writer) return `Explained (${esc(p.writer)}): ${esc(p.summary)}`;
+  if (p.decision === "select") return `User chose option ${esc(p.text)}`;
+  if (p.decision === "reject_one") return `User turned down one option: “${esc(p.text)}”`;
+  if (p.decision === "none_of_these") return `User: “${esc(p.text)}”`;
+  if (p.route && p.reader) return `Read feedback (${esc(p.reader)}): ${esc(p.route)}${p.reason ? ` — “${esc(p.reason)}”` : ""}${p.new_hard_rules?.length ? `; new rule: no ${list(p.new_hard_rules)}` : ""}`;
+  if (p.tool === "build_cart") return `Built cart on ${esc(PLAT[p.platform] || p.platform)}: ${(p.items || []).map(l => `${l.qty} × ${esc(l.item)}`).join(", ")}`;
+  if (p.tool === "quote") return `Live quote: <b>${money(p.total)}</b> (${money(p.subtotal)} + ${money(p.fees)} fees)`;
+  if (p.quote_ok != null) return `Quote check ${p.quote_ok ? "passed" : "<b>failed</b>"}: estimate ${money(p.estimate)}, quoted ${money(p.quoted_total)}${p.problems?.length ? ` — ${list(p.problems)}` : ""}`;
+  if (e.kind === "approval" && p.approved != null) return `User ${p.approved ? "<b>approved</b>" : "declined"} ${money(p.total)}${p.approved ? "" : `: “${esc(p.text)}”`}`;
+  if (p.tool === "submit") return `Handed off to checkout: <a href="${esc(p.handoff_url)}" target="_blank" rel="noopener">${esc(p.handoff_url)}</a>`;
+  if (p.what) return `${esc(p.what)}${p.note ? ": " + esc(p.note) : ""}${p.error ? ` (${esc(p.error)})` : ""}`;
+  return null;
+}
+
+function summary(e) {
+  const p = e.payload || {};
+  const real = realSummary(e);
+  if (real) return real;
+  if (e.kind === "evidence" && p.item) return `<b>${esc(p.item)}</b> at ${esc(p.restaurant)} on ${esc(PLAT[p.platform] || p.platform)}: ${money(p.price)} + ${money(p.fees)} fees${p.eta_min ? `, ${p.eta_min} min` : ""}`;
+  if (e.kind === "evidence" && p.error) return `${esc(PLAT[p.platform] || p.platform)} search failed (${esc(p.error)})`;
+  if (p.tool === "quote") return `Live quote: <b>${money(p.total)}</b>`;
+  if (p.what === "excluded") return `Dropped <b>${esc(p.offer)}</b>: ${esc(p.because)}`;
+  if (p.what === "ranking") return `Ranked by ${esc(p.ranker)}: ${(p.order || []).map(esc).join(" › ")}`;
+  if (p.what === "same dish on both platforms") return `Same dish: ${(p.items || []).map(esc).join(" ≈ ")} (${Math.round(p.confidence * 100)}%)`;
+  if (p.what === "quote check") return `Quote check ${p.ok ? "passed" : "<b>failed</b>"}: expected ${money(p.expected)}, got ${money(p.quoted)} (${p.drift_pct}%)`;
+  if (p.what === "parsed request") return `Parsed: ${Object.entries(p).filter(([k]) => !["what", "raw_text"].includes(k)).map(([k, v]) => `${esc(k)}=${esc(Array.isArray(v) ? v.join(",") : v)}`).join(", ")}`;
+  if (e.kind === "approval") return `User ${p.approved ? "approved" : "rejected"}${p.what ? " " + esc(p.what) : ""}${p.offer ? `: ${esc(p.offer)}` : ""}${p.total ? ` (${money(p.total)})` : ""}${p.reason ? ` — “${esc(p.reason)}”` : ""}`;
+  if (p.tool) return `Called <span class="mono">${esc(p.tool)}</span>${p.restaurant ? ` at ${esc(p.restaurant)}` : ""}${p.what ? ": " + esc(p.what) : ""}`;
+  return `<span class="mono">${esc(JSON.stringify(p))}</span>`;
+}
+
+function renderAudit(events, runId) {
+  const box = $("#events");
+  $("#runInfo").innerHTML = `Run <span class="mono">${esc(runId)}</span> · ${events.length} events`;
+  let lastNode = null, html = "";
+  for (const e of events) {
+    if (!shown[e.kind]) continue;
+    if (e.node !== lastNode) { html += `<div class="node-label">${esc(e.node)}</div>`; lastNode = e.node; }
+    const t = new Date(e.ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+    html += `<div class="ev k-${esc(e.kind)}" id="ev-${esc(e.event_id)}">
+      <div class="row"><span class="kind">${esc(e.kind)}</span><span class="fine">${t}</span><span class="id mono">${esc(short(e.event_id))}</span></div>
+      <div class="body">${summary(e)}</div>
+      ${(e.evidence_ids?.length || e.source_url) ? `<div class="cites">${cites(e.evidence_ids)}${e.source_url ? `<a class="fine" href="${esc(e.source_url)}" target="_blank" rel="noopener">source ↗</a>` : ""}</div>` : ""}
+    </div>`;
+  }
+  box.innerHTML = html || `<p class="fine" style="padding:8px">No events match the filter.</p>`;
+  box.scrollTop = box.scrollHeight;
+}
+
+function showEvidence(id) {
+  if (window.innerWidth <= 900) $("#audit").classList.add("open");
+  let node = document.getElementById("ev-" + id);
+  if (!node && last) { Object.keys(shown).forEach(k => shown[k] = true); syncFilters(); renderAudit(last.audit, last.run_id); node = document.getElementById("ev-" + id); }
+  if (!node) return;
+  node.scrollIntoView({ behavior: "smooth", block: "center" });
+  node.classList.remove("flash"); void node.offsetWidth; node.classList.add("flash");
+  setTimeout(() => node.classList.remove("flash"), 1600);
+}
+
+function syncFilters() {
+  document.querySelectorAll("#filters button").forEach(b => {
+    const k = b.dataset.k;
+    b.classList.toggle("on", k === "all" ? Object.values(shown).every(Boolean) : shown[k]);
+  });
+}
+
+// ---------- wiring
+document.addEventListener("click", e => { const c = e.target.closest(".cite"); if (c) showEvidence(c.dataset.ev); });
+$("#filters").onclick = e => {
+  const b = e.target.closest("button"); if (!b) return;
+  const k = b.dataset.k;
+  if (k === "all") { const all = !Object.values(shown).every(Boolean); Object.keys(shown).forEach(x => shown[x] = all); }
+  else shown[k] = !shown[k];
+  syncFilters(); if (last) renderAudit(last.audit, last.run_id);
+};
+$("#form").onsubmit = e => {
+  e.preventDefault();
+  const v = $("#input").value.trim(); if (!v || busy) return;
+  $("#input").value = ""; say("user", v); call({ message: v });
+};
+document.querySelectorAll(".suggest button").forEach(b => b.onclick = () => { say("user", b.textContent); call({ message: b.textContent }); });
+$("#newChat").onclick = () => location.reload();
+$("#auditToggle").onclick = () => $("#audit").classList.toggle("open");
+
+fetch(API + "/orders/" + USER_ID).then(r => setConn(r.ok)).catch(() => setConn(false));
+</script>
+</body>
+</html>

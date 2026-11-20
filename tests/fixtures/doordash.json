@@ -1,0 +1,26 @@
+[
+  {"storeId": "dd-1001", "name": "Sichuan Garden", "url": "https://www.doordash.com/store/sichuan-garden-san-francisco-1001/", "averageRating": 4.6, "numRatings": 1520, "cuisines": ["Chinese", "Sichuan"], "priceTier": 2, "deliveryFee": "$2.99", "etaMinutes": 32, "distance": "1.2 mi", "address": "1234 Clement St, San Francisco, CA 94118", "city": "San Francisco", "offersPickup": true, "isSponsored": false, "searchLocation": "San Francisco, CA", "scrapedAt": "2026-11-20T11:42:30+00:00",
+   "menu": [
+     {"name": "Sichuan Beef Noodles — Hot", "description": "Beef shank, spicy chili broth, wheat noodles", "price": 15.49, "priceDisplay": "$15.49"},
+     {"name": "Dan Dan Noodles", "description": "Pork, chili oil, peanuts", "price": 12.99, "priceDisplay": "$12.99"},
+     {"name": "Mapo Tofu (Spicy)", "description": "Tofu in chili bean sauce", "price": 13.99, "priceDisplay": "$13.99"},
+     {"name": "Garlic Bok Choy w/ Shiitake", "description": "Bok choy and shiitake mushrooms", "price": 11.49, "priceDisplay": "$11.49"}
+   ]},
+  {"storeId": "dd-1002", "name": "Golden Wok", "url": "https://www.doordash.com/store/golden-wok-san-francisco-1002/", "averageRating": 4.0, "numRatings": 610, "cuisines": ["Chinese"], "priceTier": 1, "deliveryFee": "$0.99", "etaMinutes": 25, "distance": "0.8 mi", "address": "88 Geary Blvd, San Francisco, CA 94108", "city": "San Francisco", "offersPickup": true, "isSponsored": true, "searchLocation": "San Francisco, CA", "scrapedAt": "2026-11-20T11:42:30+00:00",
+   "menu": [
+     {"name": "Spicy Garlic Lo Mein", "description": "Egg noodles, chili garlic oil", "price": 11.99, "priceDisplay": "$11.99"},
+     {"name": "General Tso's Chicken", "description": "Crispy chicken, sweet chili glaze", "price": 14.49, "priceDisplay": "$14.49"}
+   ]},
+  {"storeId": "dd-1003", "name": "Spicy Village", "url": "https://www.doordash.com/store/spicy-village-san-francisco-1003/", "averageRating": 4.4, "numRatings": 402, "cuisines": ["Chinese", "Hunan"], "priceTier": 2, "deliveryFee": "$3.49", "etaMinutes": 55, "distance": "3.4 mi", "address": "501 Irving St, San Francisco, CA 94122", "city": "San Francisco", "offersPickup": false, "isSponsored": false, "searchLocation": "San Francisco, CA", "scrapedAt": "2026-11-20T11:42:30+00:00",
+   "menu": [
+     {"name": "Mala Noodles w/ Enoki", "description": "Mala sauce, enoki mushrooms, noodles", "price": 14.99, "priceDisplay": "$14.99"}
+   ]},
+  {"storeId": "dd-1004", "name": "Noodle House", "url": "https://www.doordash.com/store/noodle-house-san-francisco-1004/", "averageRating": 4.5, "numRatings": 233, "cuisines": ["Chinese"], "priceTier": 1, "deliveryFee": "$1.99", "etaMinutes": 38, "distance": "1.9 mi", "address": "720 Kearny St, San Francisco, CA 94108", "city": "San Francisco", "offersPickup": true, "isSponsored": false, "searchLocation": "San Francisco, CA", "scrapedAt": "2026-11-20T11:42:30+00:00",
+   "menu": [
+     {"name": "Spicy Wonton Noodle Soup", "description": "Pork wontons in chili oil broth with noodles", "price": 13.5, "priceDisplay": "$13.50"}
+   ]},
+  {"storeId": "dd-1005", "name": "Green Leaf Salads", "url": "https://www.doordash.com/store/green-leaf-san-francisco-1005/", "averageRating": 4.2, "numRatings": 98, "cuisines": ["Salads"], "priceTier": 2, "deliveryFee": "$1.49", "etaMinutes": 20, "distance": "0.5 mi", "address": "15 Market St, San Francisco, CA 94105", "city": "San Francisco", "offersPickup": true, "isSponsored": false, "searchLocation": "San Francisco, CA", "scrapedAt": "2026-11-20T11:42:30+00:00",
+   "menu": [
+     {"name": "Caesar Salad", "description": "Romaine, parmesan, croutons", "price": 10.49, "priceDisplay": "$10.49"}
+   ]}
+]

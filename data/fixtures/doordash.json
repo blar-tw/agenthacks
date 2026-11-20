@@ -1,26 +1,999 @@
 [
-  {"storeId": "dd-1001", "name": "Sichuan Garden", "url": "https://www.doordash.com/store/sichuan-garden-san-francisco-1001/", "averageRating": 4.6, "numRatings": 1520, "cuisines": ["Chinese", "Sichuan"], "priceTier": 2, "deliveryFee": "$2.99", "etaMinutes": 32, "distance": "1.2 mi", "address": "1234 Clement St, San Francisco, CA 94118", "city": "San Francisco", "offersPickup": true, "isSponsored": false, "searchLocation": "San Francisco, CA", "scrapedAt": "2026-11-20T11:42:30+00:00",
-   "menu": [
-     {"name": "Sichuan Beef Noodles — Hot", "description": "Beef shank, spicy chili broth, wheat noodles", "price": 15.49, "priceDisplay": "$15.49"},
-     {"name": "Dan Dan Noodles", "description": "Pork, chili oil, peanuts", "price": 12.99, "priceDisplay": "$12.99"},
-     {"name": "Mapo Tofu (Spicy)", "description": "Tofu in chili bean sauce", "price": 13.99, "priceDisplay": "$13.99"},
-     {"name": "Garlic Bok Choy w/ Shiitake", "description": "Bok choy and shiitake mushrooms", "price": 11.49, "priceDisplay": "$11.49"}
-   ]},
-  {"storeId": "dd-1002", "name": "Golden Wok", "url": "https://www.doordash.com/store/golden-wok-san-francisco-1002/", "averageRating": 4.0, "numRatings": 610, "cuisines": ["Chinese"], "priceTier": 1, "deliveryFee": "$0.99", "etaMinutes": 25, "distance": "0.8 mi", "address": "88 Geary Blvd, San Francisco, CA 94108", "city": "San Francisco", "offersPickup": true, "isSponsored": true, "searchLocation": "San Francisco, CA", "scrapedAt": "2026-11-20T11:42:30+00:00",
-   "menu": [
-     {"name": "Spicy Garlic Lo Mein", "description": "Egg noodles, chili garlic oil", "price": 11.99, "priceDisplay": "$11.99"},
-     {"name": "General Tso's Chicken", "description": "Crispy chicken, sweet chili glaze", "price": 14.49, "priceDisplay": "$14.49"}
-   ]},
-  {"storeId": "dd-1003", "name": "Spicy Village", "url": "https://www.doordash.com/store/spicy-village-san-francisco-1003/", "averageRating": 4.4, "numRatings": 402, "cuisines": ["Chinese", "Hunan"], "priceTier": 2, "deliveryFee": "$3.49", "etaMinutes": 55, "distance": "3.4 mi", "address": "501 Irving St, San Francisco, CA 94122", "city": "San Francisco", "offersPickup": false, "isSponsored": false, "searchLocation": "San Francisco, CA", "scrapedAt": "2026-11-20T11:42:30+00:00",
-   "menu": [
-     {"name": "Mala Noodles w/ Enoki", "description": "Mala sauce, enoki mushrooms, noodles", "price": 14.99, "priceDisplay": "$14.99"}
-   ]},
-  {"storeId": "dd-1004", "name": "Noodle House", "url": "https://www.doordash.com/store/noodle-house-san-francisco-1004/", "averageRating": 4.5, "numRatings": 233, "cuisines": ["Chinese"], "priceTier": 1, "deliveryFee": "$1.99", "etaMinutes": 38, "distance": "1.9 mi", "address": "720 Kearny St, San Francisco, CA 94108", "city": "San Francisco", "offersPickup": true, "isSponsored": false, "searchLocation": "San Francisco, CA", "scrapedAt": "2026-11-20T11:42:30+00:00",
-   "menu": [
-     {"name": "Spicy Wonton Noodle Soup", "description": "Pork wontons in chili oil broth with noodles", "price": 13.5, "priceDisplay": "$13.50"}
-   ]},
-  {"storeId": "dd-1005", "name": "Green Leaf Salads", "url": "https://www.doordash.com/store/green-leaf-san-francisco-1005/", "averageRating": 4.2, "numRatings": 98, "cuisines": ["Salads"], "priceTier": 2, "deliveryFee": "$1.49", "etaMinutes": 20, "distance": "0.5 mi", "address": "15 Market St, San Francisco, CA 94105", "city": "San Francisco", "offersPickup": true, "isSponsored": false, "searchLocation": "San Francisco, CA", "scrapedAt": "2026-11-20T11:42:30+00:00",
-   "menu": [
-     {"name": "Caesar Salad", "description": "Romaine, parmesan, croutons", "price": 10.49, "priceDisplay": "$10.49"}
-   ]}
+  {
+    "storeId": "768793",
+    "name": "Z & Y Restaurant",
+    "url": "https://www.doordash.com/store/z-&-y-restaurant-san-francisco-768793/",
+    "averageRating": 4.7,
+    "numRatings": 6850,
+    "numRatingsDisplay": null,
+    "cuisines": [],
+    "priceTier": null,
+    "deliveryFee": null,
+    "etaMinutes": null,
+    "distance": null,
+    "address": "655 Jackson Street",
+    "streetAddress": "655 Jackson Street",
+    "state": null,
+    "zipCode": null,
+    "latitude": 37.796109,
+    "longitude": -122.406048,
+    "logo": null,
+    "isSponsored": null,
+    "offersPickup": null,
+    "tags": [],
+    "popularItems": [],
+    "phone": null,
+    "menu": [
+      {
+        "id": "27156026659",
+        "name": "Chicken with Explosive Chili Pepper 飄香辣子雞",
+        "description": "Spicy. Sautéed with fried dried chili peppers.",
+        "price": 35,
+        "priceDisplay": "$35.00"
+      },
+      {
+        "id": "27156026715",
+        "name": "Pea Sprouts \"大豆苗 可選蒜蓉/上湯\"",
+        "description": "Choice of Boiled or Stir Fried with Garlic",
+        "price": 24.95,
+        "priceDisplay": "$24.95"
+      },
+      {
+        "id": "27156026702",
+        "name": "Boiled Fish with Spicy Green Peppercorn 青花椒水煮魚",
+        "description": "Spicy.",
+        "price": 28,
+        "priceDisplay": "$28.00"
+      },
+      {
+        "id": "27156026725",
+        "name": "Mao Xue Wang 古鎮毛血旺",
+        "description": "Spicy.",
+        "price": 35.95,
+        "priceDisplay": "$35.95"
+      },
+      {
+        "id": "27156026679",
+        "name": "Mongolian Beef 蒙古牛肉",
+        "description": "Spicy.",
+        "price": 28,
+        "priceDisplay": "$28.00"
+      },
+      {
+        "id": "27156026700",
+        "name": "Ma Po Tofu with Pork 麻婆豆腐",
+        "description": "Spicy.",
+        "price": 20,
+        "priceDisplay": "$20.00"
+      },
+      {
+        "id": "27156026620",
+        "name": "Truffle Shrimp Fried Rice 黑松露蝦炒飯",
+        "description": "Shrimp fried rice with truffle, featuring tender shrimp, fluffy rice, scrambled eggs, and aromatic truffle shavings.",
+        "price": 26,
+        "priceDisplay": "$26.00"
+      },
+      {
+        "id": "27156026625",
+        "name": "Kung Pao Chicken 宮保雞丁",
+        "description": "Spicy. chicken, bell peppers, peanuts",
+        "price": 22,
+        "priceDisplay": "$22.00"
+      },
+      {
+        "id": "27156026680",
+        "name": "Cumin Lamb 孜然羊肉",
+        "description": "Spicy.",
+        "price": 25,
+        "priceDisplay": "$25.00"
+      },
+      {
+        "id": "27156026705",
+        "name": "Fish Filets in Hot Chili Oil 功夫水煮魚",
+        "description": "Spicy.",
+        "price": 26.95,
+        "priceDisplay": "$26.95"
+      },
+      {
+        "id": "27156026629",
+        "name": "Tea Smoked Duck 樟茶鴨",
+        "description": "Tender slices of tea-smoked duck, infused with aromatic tea and spices, served atop a bed of fresh greens.",
+        "price": 35,
+        "priceDisplay": "$35.00"
+      },
+      {
+        "id": "27156026626",
+        "name": "House Special Fresh Fish Filet Boiled in House Spicy Sauce 功夫水煮魚",
+        "description": "Spicy.",
+        "price": 26.95,
+        "priceDisplay": "$26.95"
+      },
+      {
+        "id": "27156026627",
+        "name": "Spicy Duck Blood 紅湯冒菜鴨血",
+        "description": "Duck Blood, Pork Intestine, Beef Tripe, Wide Vermicelli 鴨血 肥腸 牛百葉 寬粉",
+        "price": 28.95,
+        "priceDisplay": "$28.95"
+      },
+      {
+        "id": "27156026722",
+        "name": "Dry Sauteed String Beans 干煸四季豆",
+        "description": "Spicy. String beans sautéed in soy sauce with black beans.",
+        "price": 18,
+        "priceDisplay": "$18.00"
+      },
+      {
+        "id": "27156026618",
+        "name": "House Special Chicken Fried Rice 鸡炒飯",
+        "description": "House special fried rice with choice of protein: beef, chicken, pork, or shrimp. Served with vegetables and soy sauce.",
+        "price": 18.95,
+        "priceDisplay": "$18.95"
+      },
+      {
+        "id": "27156026691",
+        "name": "Twice Cooked Pork 大刀回鍋肉",
+        "description": "Spicy.",
+        "price": 22,
+        "priceDisplay": "$22.00"
+      },
+      {
+        "id": "27156026660",
+        "name": "Kung Pao Chicken 宮保雞丁",
+        "description": "Spicy. Chicken, bell peppers, peanuts",
+        "price": 25,
+        "priceDisplay": "$25.00"
+      },
+      {
+        "id": "27156026621",
+        "name": "House Special Beef Chow Mein 牛炒麵",
+        "description": "Stir-fried noodles with choice of beef, chicken, pork, or shrimp. Savory and satisfying Chinese classic.",
+        "price": 19,
+        "priceDisplay": "$19.00"
+      },
+      {
+        "id": "27156026704",
+        "name": "Creamy Prawns with Honey Walnut 核桃大明蝦",
+        "description": "Succulent prawns in a creamy sauce, garnished with honey-glazed walnuts and crisp lettuce, offering a blend of textures and flavors.",
+        "price": 28,
+        "priceDisplay": "$28.00"
+      },
+      {
+        "id": "27156026712",
+        "name": "Crispy Garlic Flavor Prawns 避風塘蝦球",
+        "description": null,
+        "price": 26.95,
+        "priceDisplay": "$26.95"
+      },
+      {
+        "id": "27156026632",
+        "name": "Frog with Flaming Chili Pepper 饞嘴跳跳蛙",
+        "description": "Boiled frog in our chef’s special red hot chili oil.",
+        "price": 28.95,
+        "priceDisplay": "$28.95"
+      },
+      {
+        "id": "27156026654",
+        "name": "Hot & Sour Tofu Soup 酸辣豆腐湯",
+        "description": "Spicy.",
+        "price": 15.95,
+        "priceDisplay": "$15.95"
+      },
+      {
+        "id": "27156026689",
+        "name": "Beef with Flaming Chili Oil 水煮牛肉",
+        "description": "Spicy. Boiled sliced of the finest Lamb or Beef in our Chef's special red hot chili oil.",
+        "price": 21.95,
+        "priceDisplay": "$21.95"
+      },
+      {
+        "id": "27156026692",
+        "name": "Dong Po Pork Shoulder 貴妃一品肘子",
+        "description": "Tender pork shoulder braised in rich sauce, accompanied by fresh broccoli.",
+        "price": 30,
+        "priceDisplay": "$30.00"
+      },
+      {
+        "id": "27156026678",
+        "name": "Broccoli Beef 西蘭牛肉",
+        "description": "Tender beef slices stir-fried with crisp broccoli in a savory sauce.",
+        "price": 21.95,
+        "priceDisplay": "$21.95"
+      }
+    ],
+    "reviews": null,
+    "searchLocation": "storeUrls",
+    "scrapedAt": "2026-11-20T20:52:20.265Z"
+  },
+  {
+    "storeId": "682066",
+    "name": "Z & Y Peking Duck",
+    "url": "https://www.doordash.com/store/z-&-y-peking-duck-san-francisco-682066/",
+    "averageRating": 4.5,
+    "numRatings": 290,
+    "numRatingsDisplay": null,
+    "cuisines": [],
+    "priceTier": null,
+    "deliveryFee": null,
+    "etaMinutes": null,
+    "distance": null,
+    "address": "606 Jackson St",
+    "streetAddress": "606 Jackson St",
+    "state": null,
+    "zipCode": null,
+    "latitude": 37.796097,
+    "longitude": -122.405428,
+    "logo": null,
+    "isSponsored": null,
+    "offersPickup": null,
+    "tags": [],
+    "popularItems": [],
+    "phone": null,
+    "menu": [
+      {
+        "id": "11096436830",
+        "name": "Chicken with Explosive Chili Pepper / 重庆飘香辣子鸡",
+        "description": "Crispy chicken smothered in Sichuan chili peppers, spices and aromatics.",
+        "price": 25,
+        "priceDisplay": "$25.00"
+      },
+      {
+        "id": "15140819937",
+        "name": "成都冒烤鸭 / Chengdu Spicy Boiled Roast Duck",
+        "description": "Duck meat in a fiery bean sauce infused with chef's special blend of red Sichuan chilis. Ingredients: duck meat, cauliflower, mushroom, potato, and yam noodle (64oz packing box)",
+        "price": 38,
+        "priceDisplay": "$38.00"
+      },
+      {
+        "id": "30889100990",
+        "name": "Pea Sprouts w/ Garlic",
+        "description": "Pea sprouts stir-fried with chopped garlic, offering a simple and aromatic flavor.",
+        "price": 26,
+        "priceDisplay": "$26.00"
+      },
+      {
+        "id": "30749390875",
+        "name": "Special Soy Sauce Chicken 豉油贵妃鸡",
+        "description": "Half or whole chicken in a savory soy sauce (豉油贵妃鸡).",
+        "price": 33,
+        "priceDisplay": "$33.00+"
+      },
+      {
+        "id": "11096436849",
+        "name": "Ma Po Tofu (Veg) / 麻婆豆腐",
+        "description": "Add pork for an additional charge.",
+        "price": 22,
+        "priceDisplay": "$22.00"
+      },
+      {
+        "id": "29968109106",
+        "name": "Beef Brisket & Turnip in a Clay Pot 萝卜清炖牛腩",
+        "description": "Stewed beef brisket and turnip slow-cooked in a clay pot, typically includes tender turnips and a savory broth.",
+        "price": 28,
+        "priceDisplay": "$28.00"
+      },
+      {
+        "id": "11096436829",
+        "name": "Wan Zhou Grilled Whole Fish / 萬州烤全魚",
+        "description": "Grilled whole fish, seasoned with traditional Wan Zhou spices, typically includes a mix of aromatic herbs and served with a spicy sauce.",
+        "price": 52,
+        "priceDisplay": "$52.00"
+      },
+      {
+        "id": "29990321506",
+        "name": "Yangzhou Fried Rice 扬州炒饭",
+        "description": "Fried rice with shrimp, chicken, ham, peas, carrots, egg, and scallions.",
+        "price": 26,
+        "priceDisplay": "$26.00"
+      },
+      {
+        "id": "30749041387",
+        "name": "Crispy Duck Legs 香酥鸭腿",
+        "description": "Tender duck legs with crispy skin, seasoned with aromatic spices.",
+        "price": 36,
+        "priceDisplay": "$36.00"
+      },
+      {
+        "id": "11096436828",
+        "name": "Spicy Fish with Chili Oil / 麻辣功夫黑魚片",
+        "description": "Tender fish slices in a spicy chili oil broth with green peppers, dried chilies, and aromatic spices.",
+        "price": 32,
+        "priceDisplay": "$32.00"
+      },
+      {
+        "id": "11096436831",
+        "name": "Kung Pao Chicken / 宫保鸡丁",
+        "description": "Stir-fried with spring onion, ginger, garlic, red and green bell pepper and Sichuan peppercorns.",
+        "price": 22,
+        "priceDisplay": "$22.00"
+      },
+      {
+        "id": "11096436852",
+        "name": "Sichuan Style Dry-braised String Beans (Veg) / 干煸四季豆",
+        "description": "String beans sautéed in soy sauce with black beans.",
+        "price": 18,
+        "priceDisplay": "$18.00"
+      },
+      {
+        "id": "11096436842",
+        "name": "Tender Beef with Spicy Rod Chili / 鲜椒雪花肥牛",
+        "description": null,
+        "price": 32,
+        "priceDisplay": "$32.00"
+      },
+      {
+        "id": "11096436850",
+        "name": "Braised Pork Belly Slices with Preserved Vegetables / 梅菜扣肉",
+        "description": "Marinated pork belly slices braised with preserved vegetables, typically served with a savory sauce.",
+        "price": 30,
+        "priceDisplay": "$30.00"
+      },
+      {
+        "id": "29990321455",
+        "name": "Duck Bone & Napa Cabbage Soup 白菜粉丝豆腐鸭骨汤",
+        "description": "Tender duck bone pieces with napa cabbage and tofu in a savory broth.",
+        "price": 20,
+        "priceDisplay": "$20.00"
+      },
+      {
+        "id": "11096436856",
+        "name": "Cauliflower and Smoked Pork in Mini Flaming Pot / 干锅有机花菜(腊肉)",
+        "description": "Tender cauliflower florets stir-fried with savory smoked pork, accented with slices of green and red chili peppers for a hint of heat.",
+        "price": 25,
+        "priceDisplay": "$25.00"
+      },
+      {
+        "id": "11096436826",
+        "name": "Crispy Garlic Prawns / 蒜蓉椒盐大虾",
+        "description": "Lightly battered prawns pan fried and tossed with fried ginger, garlic and jalapeño.",
+        "price": 26,
+        "priceDisplay": "$26.00"
+      },
+      {
+        "id": "30871807567",
+        "name": "Miso Sea Bass",
+        "description": "Miso-marinated sea bass typically served with sautéed Asian vegetables and a shiitake reduction.",
+        "price": 65,
+        "priceDisplay": "$65.00"
+      },
+      {
+        "id": "11096436823",
+        "name": "Spicy Clams / 麻辣炒蛤蜊",
+        "description": "Tender clams stir-fried with spicy chili peppers, garlic, and scallions in a savory sauce.",
+        "price": 30,
+        "priceDisplay": "$30.00"
+      },
+      {
+        "id": "11096436840",
+        "name": "Cumin Beef or Lamb / 孜然牛肉/羊肉",
+        "description": "Cumin seasoned beef or lamb, choice of protein.",
+        "price": 25,
+        "priceDisplay": "$25.00"
+      },
+      {
+        "id": "30749099885",
+        "name": "Orange Flavored Chicken 陈皮鸡",
+        "description": "Tender chicken pieces coated in a tangy orange sauce, garnished with fresh broccoli florets.",
+        "price": 33,
+        "priceDisplay": "$33.00"
+      },
+      {
+        "id": "11096436825",
+        "name": "Honey Walnut Prawns / 合桃虾",
+        "description": "A creamy honey walnut sauce.",
+        "price": 26,
+        "priceDisplay": "$26.00"
+      },
+      {
+        "id": "11096436848",
+        "name": "Shredded Pork with Spicy Garlic Sauce / 鱼香肉丝",
+        "description": "Tender shredded pork stir-fried with spicy garlic sauce, mixed with julienned vegetables and aromatic seasonings.",
+        "price": 25,
+        "priceDisplay": "$25.00"
+      },
+      {
+        "id": "30730927976",
+        "name": "Pork Intestine in Mini Flaming Pot 干锅肥肠",
+        "description": "Sautéed pork intestines with dried red chilies and green onions.",
+        "price": 30,
+        "priceDisplay": "$30.00"
+      },
+      {
+        "id": "11096436864",
+        "name": "Beef Chow Mein / 牛肉粗炒面",
+        "description": "Tender beef strips stir-fried with thick noodles, crisp vegetables, and savory sauce.",
+        "price": 22,
+        "priceDisplay": "$22.00"
+      }
+    ],
+    "reviews": null,
+    "searchLocation": "storeUrls",
+    "scrapedAt": "2026-11-20T20:52:20.265Z"
+  },
+  {
+    "storeId": "8150",
+    "name": "Spices",
+    "url": "https://www.doordash.com/store/spices-san-francisco-8150",
+    "averageRating": 4.7,
+    "numRatings": 2974,
+    "numRatingsDisplay": null,
+    "cuisines": [],
+    "priceTier": null,
+    "deliveryFee": null,
+    "etaMinutes": null,
+    "distance": null,
+    "address": "291 6th Avenue",
+    "streetAddress": "291 6th Avenue",
+    "state": null,
+    "zipCode": null,
+    "latitude": 37.783201,
+    "longitude": -122.464579,
+    "logo": null,
+    "isSponsored": null,
+    "offersPickup": null,
+    "tags": [],
+    "popularItems": [],
+    "phone": null,
+    "menu": [
+      {
+        "id": "44802112741",
+        "name": "Deep Fried Fish Fillet w.Explosive Chili",
+        "description": "Crispy fish fillet topped with spicy chili peppers and garnished with fresh herbs.",
+        "price": 26.99,
+        "priceDisplay": "$26.99"
+      },
+      {
+        "id": "44802112775",
+        "name": "Chicken Wings w.Explosive Chili",
+        "description": "Crispy chicken wings tossed with a generous amount of spicy chili peppers, garnished with fresh cilantro.",
+        "price": 26.99,
+        "priceDisplay": "$26.99"
+      },
+      {
+        "id": "44802112782",
+        "name": "Dry Braised String Beans",
+        "description": "String beans braised with a savory blend of spices, showcasing a vibrant green color and a crisp texture.",
+        "price": 18.99,
+        "priceDisplay": "$18.99"
+      },
+      {
+        "id": "44802112744",
+        "name": "Kung-Pao Chicken",
+        "description": "Tender chicken stir-fried with peanuts, bell peppers, and onions in a savory sauce.",
+        "price": 18.99,
+        "priceDisplay": "$18.99"
+      },
+      {
+        "id": "44802112816",
+        "name": "Small Meat & Seafood Iron Pot",
+        "description": "Small iron pot filled with meat and seafood choices. Select from various bold flavors and meats like clam, beef, lamb, tripe, seafood, and more.",
+        "price": 42.99,
+        "priceDisplay": "$42.99"
+      },
+      {
+        "id": "44802112765",
+        "name": "Orange Chicken",
+        "description": "Tender chicken pieces glazed in a tangy orange sauce, garnished with sesame seeds and julienned vegetables.",
+        "price": 26.99,
+        "priceDisplay": "$26.99"
+      },
+      {
+        "id": "44802112802",
+        "name": "House Special Fried Rice w.Chicken, Pork & Shrimp",
+        "description": "Aromatic fried rice with tender chicken, succulent pork, and shrimp, mixed with peas, carrots, and scrambled eggs.",
+        "price": 18.99,
+        "priceDisplay": "$18.99"
+      },
+      {
+        "id": "44802112813",
+        "name": "Numbing Spicy Combo Casserole",
+        "description": "Aromatic broth with shrimp, mussels, squid, and tofu, infused with numbing spices and garnished with fresh cilantro.",
+        "price": 46.99,
+        "priceDisplay": "$46.99"
+      },
+      {
+        "id": "44802112702",
+        "name": "Salted Egg Yolk Chicken Wings",
+        "description": "Crispy chicken wings coated in savory salted egg yolk, garnished with fresh herbs and sliced red chili.",
+        "price": 26.99,
+        "priceDisplay": "$26.99"
+      },
+      {
+        "id": "44802112733",
+        "name": "Fish Fillet Bowl w.Flaming Red Oil",
+        "description": "Tender fish fillets in a vibrant red chili oil, garnished with dried chilies and fresh cilantro.",
+        "price": 26.99,
+        "priceDisplay": "$26.99"
+      },
+      {
+        "id": "44802112767",
+        "name": "Cumin Lamb",
+        "description": "Tender lamb stir-fried with cumin, onions, bell peppers, and garnished with fresh cilantro.",
+        "price": 26.99,
+        "priceDisplay": "$26.99"
+      },
+      {
+        "id": "44802112793",
+        "name": "Fried Tofu w.Explosive Chili Pepper",
+        "description": "Crispy fried tofu topped with vibrant chili peppers, garnished with fresh cilantro and sesame seeds.",
+        "price": 20.99,
+        "priceDisplay": "$20.99"
+      },
+      {
+        "id": "44802112803",
+        "name": "Shanghai Style Fried Noodle w.Pork",
+        "description": "Thick noodles stir-fried with pork, cabbage, and bean sprouts in a savory sauce.",
+        "price": 18.99,
+        "priceDisplay": "$18.99"
+      },
+      {
+        "id": "44802112786",
+        "name": "Stir Fried Green Choy w.Garlic",
+        "description": "Crisp green choy stir-fried with garlic, highlighting its fresh, vibrant texture and subtle flavors.",
+        "price": 18.99,
+        "priceDisplay": "$18.99"
+      },
+      {
+        "id": "44802112773",
+        "name": "Twice Cooked Chinese Bacon",
+        "description": "Sliced Chinese bacon typically stir-fried with cabbage, bell peppers, and onions in a spicy bean sauce.",
+        "price": 20.99,
+        "priceDisplay": "$20.99"
+      },
+      {
+        "id": "44802112752",
+        "name": "Ma-Po Tofu w.Ground Pork",
+        "description": "Silky tofu cubes and savory ground pork in a spicy, aromatic sauce, garnished with fresh cilantro.",
+        "price": 18.99,
+        "priceDisplay": "$18.99"
+      },
+      {
+        "id": "44802112817",
+        "name": "Large Meat & Seafood Iron Pot",
+        "description": "Large iron pot with a mix of meats and seafood. Choose from spicy, pickled, or garlic sauce. Select two from clams, beef, lamb, fish, shrimp, and more.",
+        "price": 54.99,
+        "priceDisplay": "$54.99"
+      },
+      {
+        "id": "44802112779",
+        "name": "Stir Fried Chives w.Shredded Tofu",
+        "description": "Crisp chives mixed with tender shredded tofu and vibrant peppers, stir-fried for a harmonious blend of flavors and textures.",
+        "price": 18.99,
+        "priceDisplay": "$18.99"
+      },
+      {
+        "id": "44802112697",
+        "name": "Braised Chicken Meat w.Chili Pepper",
+        "description": "Tender chicken pieces braised with sliced chili peppers and green onions, offering a bold and spicy flavor profile.",
+        "price": 20.99,
+        "priceDisplay": "$20.99"
+      },
+      {
+        "id": "44802112735",
+        "name": "Deep Fried Shrimp w.Chili Pepper",
+        "description": "Crispy shrimp coated in a light batter, tossed with sliced green chili peppers for a spicy kick.",
+        "price": 28.99,
+        "priceDisplay": "$28.99"
+      },
+      {
+        "id": "44802112760",
+        "name": "Pork Intestine w.Pork Blood Casserole",
+        "description": "Tender pork intestine and pork blood simmered in a rich, savory broth with fresh cilantro, green onions, and chili peppers.",
+        "price": 28.99,
+        "priceDisplay": "$28.99"
+      },
+      {
+        "id": "44802112807",
+        "name": "Cumin Beef Chow Mein",
+        "description": "Tender beef strips with cumin, stir-fried with chow mein noodles, onions, and green onions.",
+        "price": 18.99,
+        "priceDisplay": "$18.99"
+      },
+      {
+        "id": "44802112729",
+        "name": "Hot & Sour Soup",
+        "description": "Tangy and spicy soup with a choice of small or large serving sizes.",
+        "price": 14.99,
+        "priceDisplay": "$14.99"
+      },
+      {
+        "id": "44802112804",
+        "name": "Tantan Noodle w.Ground Pork",
+        "description": "Springy noodles topped with seasoned ground pork, garnished with fresh green onions, accompanied by crisp greens and sliced cucumbers.",
+        "price": 18.99,
+        "priceDisplay": "$18.99"
+      },
+      {
+        "id": "44802112754",
+        "name": "Ground Pork w.Pickled Long Beans",
+        "description": "Savory ground pork mixed with tangy pickled long beans, garnished with sliced green chilies for a hint of spice.",
+        "price": 18.99,
+        "priceDisplay": "$18.99"
+      }
+    ],
+    "reviews": null,
+    "searchLocation": "storeUrls",
+    "scrapedAt": "2026-11-20T20:52:20.265Z"
+  },
+  {
+    "storeId": "102102",
+    "name": "China Live",
+    "url": "https://www.doordash.com/store/china-live-san-francisco-102102/",
+    "averageRating": 4.7,
+    "numRatings": 5921,
+    "numRatingsDisplay": null,
+    "cuisines": [],
+    "priceTier": null,
+    "deliveryFee": null,
+    "etaMinutes": null,
+    "distance": null,
+    "address": "644 Broadway",
+    "streetAddress": "644 Broadway",
+    "state": null,
+    "zipCode": null,
+    "latitude": 37.797859,
+    "longitude": -122.407787,
+    "logo": null,
+    "isSponsored": null,
+    "offersPickup": null,
+    "tags": [],
+    "popularItems": [],
+    "phone": null,
+    "menu": [
+      {
+        "id": "12486160905",
+        "name": "\"Peking Duck\" with Kumquat Glaze, Traditional Condiments, 5 Sesame Pockets (sf)",
+        "description": "Crispy duck glazed with kumquat, served with traditional condiments in five sesame pockets.",
+        "price": 32,
+        "priceDisplay": "$32.00"
+      },
+      {
+        "id": "8894666627",
+        "name": "House Famous Kung Pao \"Firecracker\" Chicken (sf)",
+        "description": "Tender chicken stir-fried with bell peppers, peanuts, scallions, and dried chilies in a savory sauce.",
+        "price": 26,
+        "priceDisplay": "$26.00"
+      },
+      {
+        "id": "11921117077",
+        "name": "BIAN DANG LUNCH “BOX”",
+        "description": "Select a MAIN PLATE (below) and includes all below:- Dongbei Vegetarian Long Pot Sticker (vg)- Crushed Cucumber Skins (vg, gf)- Sichuan Blistered Green Beans (vg)- Jasmine Rice (vg, gf)- Mandarin Chocolate Brownie (vt)",
+        "price": 22,
+        "priceDisplay": "$22.00"
+      },
+      {
+        "id": "8894613442",
+        "name": "Sichuan Blistered Green Beans",
+        "description": "Yunnan Olive, Pickled Radish, Salted Plum, Mushroom & Toon Paste (vg)",
+        "price": 22,
+        "priceDisplay": "$22.00"
+      },
+      {
+        "id": "8894665527",
+        "name": "House XO Sauce with Cognac 4oz",
+        "description": "Rich XO sauce infused with cognac, featuring dried scallops and Jinhua ham.",
+        "price": 34.95,
+        "priceDisplay": "$34.95"
+      },
+      {
+        "id": "8894661507",
+        "name": "Hong Kong Wok-Fried Egg Noodles",
+        "description": "with Mushroom, Bok Choy & Chicken (sf)",
+        "price": 24,
+        "priceDisplay": "$24.00"
+      },
+      {
+        "id": "8894661509",
+        "name": "Shanghai 'Fat' Chow Mein (sf)",
+        "description": "Pork, Shrimp, Chicken & Seasonal Vegetables",
+        "price": 23,
+        "priceDisplay": "$23.00"
+      },
+      {
+        "id": "8894551012",
+        "name": "Sheng Jian Bao 'SJB' (5)",
+        "description": "Our #1 Seller - Daily Made Pan-Fried Pork Dumplings. Hot & Juicy Inside!",
+        "price": 20,
+        "priceDisplay": "$20.00"
+      },
+      {
+        "id": "8894666628",
+        "name": "House Famous Kung Pao \"Firecracker\" Tofu (vg)",
+        "description": null,
+        "price": 22,
+        "priceDisplay": "$22.00"
+      },
+      {
+        "id": "8894666632",
+        "name": "Singapore Nonya Style Spicy Chicken Curry with Crispy Brussel Sprouts (gf)",
+        "description": "with Crispy Brussel Sprouts",
+        "price": 25,
+        "priceDisplay": "$25.00"
+      },
+      {
+        "id": "8894661508",
+        "name": "Vegetarian Hong Kong Wok-Fried Egg Noodles",
+        "description": "with Mushroom & Bok Choy (vt)",
+        "price": 24,
+        "priceDisplay": "$24.00"
+      },
+      {
+        "id": "8894613441",
+        "name": "Yu Choi, Roasted Black Garlic (vg, gf)",
+        "description": "Tender yu choi with roasted black garlic, offering a harmonious blend of flavors.",
+        "price": 21,
+        "priceDisplay": "$21.00"
+      },
+      {
+        "id": "8894666629",
+        "name": "Tamarind Laced Sweet & Sour Basil Glazed Pork Ribs (sf)",
+        "description": "Tender pork ribs glazed with a tamarind-laced sweet and sour basil sauce, garnished with sesame seeds and fresh herbs.",
+        "price": 28,
+        "priceDisplay": "$28.00"
+      },
+      {
+        "id": "8894551011",
+        "name": "\"Impossible\" Sichuan Working Hands Dumplings",
+        "description": "Sesame Butter, Peppercorn-Chili Broth (10) (vt)",
+        "price": 24,
+        "priceDisplay": "$24.00"
+      },
+      {
+        "id": "8894615175",
+        "name": "Bang Bang Spicy Chicken Salad",
+        "description": "Crisp cabbage, bean sprouts, and tender chicken strips, garnished with a hint of chili for a spicy kick.",
+        "price": 20,
+        "priceDisplay": "$20.00"
+      },
+      {
+        "id": "8894661513",
+        "name": "Taiwan Best Braised Beef Noodle Soup",
+        "description": "Tender braised beef, bok choy, scallions, and noodles in a rich broth.",
+        "price": 21,
+        "priceDisplay": "$21.00"
+      },
+      {
+        "id": "8894666631",
+        "name": "Vegetarian Chengdu Pock Mark Ma's Mapo Tofu Claypot (vg, gf)",
+        "description": "Tender tofu cubes in a spicy, savory sauce with green onions and black pepper.",
+        "price": 24,
+        "priceDisplay": "$24.00"
+      },
+      {
+        "id": "8894615176",
+        "name": "Peking Duck Chopped Salad (sf)",
+        "description": "Crisp greens, tender Peking duck, and crunchy vegetables topped with black sesame seeds.",
+        "price": 21,
+        "priceDisplay": "$21.00"
+      },
+      {
+        "id": "12061016650",
+        "name": "Vegetarian Shanghai 'Fat' Chow Mein",
+        "description": "with Seasonal Vegetables (vt)",
+        "price": 15,
+        "priceDisplay": "$15.00"
+      },
+      {
+        "id": "8894551010",
+        "name": "Sichuan \"Working Hands\" Pork Dumplings",
+        "description": "Sesame Butter, Peppercorn-Chili Broth (10)",
+        "price": 18,
+        "priceDisplay": "$18.00"
+      },
+      {
+        "id": "8894551013",
+        "name": "Shrimp & Scallop Shumai Dumpling (4) (sf)",
+        "description": "Delicate dumplings filled with shrimp and scallops, topped with a hint of green garnish. Four pieces per serving.",
+        "price": 21,
+        "priceDisplay": "$21.00"
+      },
+      {
+        "id": "17554075249",
+        "name": "Spicy Orange Chicken, Bok Choy, Slaw & Jasmine Rice Bowl",
+        "description": "Tender spicy orange chicken with bok choy, tangy slaw, and jasmine rice.",
+        "price": 19,
+        "priceDisplay": "$19.00"
+      },
+      {
+        "id": "8894652572",
+        "name": "Kurobuta Pork Char Siu (sf)",
+        "description": "Hot Mustard",
+        "price": 21,
+        "priceDisplay": "$21.00"
+      },
+      {
+        "id": "8894662385",
+        "name": "Butter Garlic Noodles (sf)",
+        "description": "Cilantro",
+        "price": 13,
+        "priceDisplay": "$13.00"
+      },
+      {
+        "id": "11806144310",
+        "name": "Dungeness Crab & Shrimp Spring Handrolls,",
+        "description": "Dual Dipping Sauce (8) (sf)",
+        "price": 24,
+        "priceDisplay": "$24.00"
+      }
+    ],
+    "reviews": null,
+    "searchLocation": "storeUrls",
+    "scrapedAt": "2026-11-20T20:52:20.265Z"
+  },
+  {
+    "storeId": "78137",
+    "name": "Sichuan Home",
+    "url": "https://www.doordash.com/store/sichuan-home-san-francisco-78137/",
+    "averageRating": 4.6,
+    "numRatings": 915,
+    "numRatingsDisplay": null,
+    "cuisines": [],
+    "priceTier": null,
+    "deliveryFee": null,
+    "etaMinutes": null,
+    "distance": null,
+    "address": "5037 Geary Boulevard",
+    "streetAddress": "5037 Geary Boulevard",
+    "state": null,
+    "zipCode": null,
+    "latitude": 37.780385,
+    "longitude": -122.473544,
+    "logo": null,
+    "isSponsored": null,
+    "offersPickup": null,
+    "tags": [],
+    "popularItems": [],
+    "phone": null,
+    "menu": [
+      {
+        "id": "44467318675",
+        "name": "Chongqing Style Spicy Chicken 重庆辣子鸡",
+        "description": null,
+        "price": 18.95,
+        "priceDisplay": "$18.95"
+      },
+      {
+        "id": "44525777441",
+        "name": "Fish Fillet and Chinese Cabbage in Hot Chili Sauce 水煮鱼",
+        "description": null,
+        "price": 22.95,
+        "priceDisplay": "$22.95"
+      },
+      {
+        "id": "44467911362",
+        "name": "Build your Own Dry Pot (Mala Xiang Guo) 麻辣香锅",
+        "description": null,
+        "price": 25.95,
+        "priceDisplay": "$25.95"
+      },
+      {
+        "id": "44550301138",
+        "name": "Hunan Stir-fired Pork with Chili Peppers 湖南辣椒炒肉",
+        "description": null,
+        "price": 21.95,
+        "priceDisplay": "$21.95"
+      },
+      {
+        "id": "44525777414",
+        "name": "Dry Fried String Bean (w/ or w/o pork) 干煸四季豆",
+        "description": null,
+        "price": 17.95,
+        "priceDisplay": "$17.95"
+      },
+      {
+        "id": "44466951692",
+        "name": "Ma-Po Tofu (w/ or w/o pork) 麻婆豆腐",
+        "description": null,
+        "price": 16.95,
+        "priceDisplay": "$16.95"
+      },
+      {
+        "id": "44525777395",
+        "name": "Lamb in Cumin Sauce 孜然羊",
+        "description": null,
+        "price": 21.95,
+        "priceDisplay": "$21.95"
+      },
+      {
+        "id": "44467318664",
+        "name": "Spicy Fish and Chinese Herb Spice 香水鱼",
+        "description": null,
+        "price": 31.95,
+        "priceDisplay": "$31.95"
+      },
+      {
+        "id": "44525777422",
+        "name": "Pea Sprout in Garlic Sauce 蒜茸豆苗",
+        "description": null,
+        "price": 18.95,
+        "priceDisplay": "$18.95"
+      },
+      {
+        "id": "44467911251",
+        "name": "Twice Cooked Pork 回锅肉",
+        "description": null,
+        "price": 21.95,
+        "priceDisplay": "$21.95"
+      },
+      {
+        "id": "44525777403",
+        "name": "Tofu and Broccoli in Brown Sauce 红烧玉子豆腐",
+        "description": "Soft tofu and tender broccoli in savory brown sauce.",
+        "price": 16.95,
+        "priceDisplay": "$16.95"
+      },
+      {
+        "id": "44525777407",
+        "name": "Sautéed Spicy Sliced Cabbage 招牌手撕椰菜",
+        "description": null,
+        "price": 14.95,
+        "priceDisplay": "$14.95"
+      },
+      {
+        "id": "44467911107",
+        "name": "Kung Pao Chicken 宫保鸡丁",
+        "description": null,
+        "price": 17.95,
+        "priceDisplay": "$17.95"
+      },
+      {
+        "id": "44525777417",
+        "name": "Shredded Potato in Sour and Hot Sauce 酸辣土豆丝",
+        "description": null,
+        "price": 14.95,
+        "priceDisplay": "$14.95"
+      },
+      {
+        "id": "44525777416",
+        "name": "Eggplant in Garlic Sauce 鱼香茄子",
+        "description": null,
+        "price": 17.95,
+        "priceDisplay": "$17.95"
+      },
+      {
+        "id": "44466951691",
+        "name": "Chef's Special Vegetable Combo 沸腾小炒",
+        "description": null,
+        "price": 17.95,
+        "priceDisplay": "$17.95"
+      },
+      {
+        "id": "44466952287",
+        "name": "Dan Dan Noodle (w/ or w/o pork) 担担面",
+        "description": null,
+        "price": 12.95,
+        "priceDisplay": "$12.95"
+      },
+      {
+        "id": "44466951630",
+        "name": "Couples Delight 夫妻肺片",
+        "description": null,
+        "price": 14.95,
+        "priceDisplay": "$14.95"
+      },
+      {
+        "id": "44467301874",
+        "name": "Cucumber in Spicy Garlic Sauce 蒜蓉黄瓜",
+        "description": null,
+        "price": 12.95,
+        "priceDisplay": "$12.95"
+      },
+      {
+        "id": "44466952340",
+        "name": "Green Onion Pancake 葱油饼",
+        "description": "Vegetarian.",
+        "price": 7.95,
+        "priceDisplay": "$7.95"
+      },
+      {
+        "id": "44466952217",
+        "name": "White Rice 白米饭",
+        "description": null,
+        "price": 3.5,
+        "priceDisplay": "$3.50"
+      }
+    ],
+    "reviews": null,
+    "searchLocation": "storeUrls",
+    "scrapedAt": "2026-11-20T20:52:20.265Z"
+  }
 ]

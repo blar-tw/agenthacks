@@ -50,7 +50,8 @@ def test_schema_has_the_seven_tables_with_vectors():
     stmts = store.schema_statements()
     names = [s.split()[5] for s in stmts]
     assert names == list(store.TABLES)
-    assert sum("VECTOR(2560)" in s for s in stmts) == 2     # preferences.vec, price_snapshots.dish_vec
+    from data import config
+    assert sum(f"VECTOR({config.EMBED_DIM})" in s for s in stmts) == 2   # preferences.vec, price_snapshots.dish_vec
     joined = " ".join(stmts).lower()
     assert not any(w in joined for w in ("password", "cookie", "token", "card"))
 

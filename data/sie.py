@@ -6,6 +6,7 @@ Score:  POST /v1/score/{model}   body {"query":{"text":..}, "items":[{"id":..,"t
 from __future__ import annotations
 
 import math
+import time
 from typing import Protocol
 from urllib.parse import quote
 
@@ -16,11 +17,11 @@ from data import config
 
 
 class Embedder(Protocol):
-    def embed(self, texts: list[str], is_query: bool = False) -> list[list[float]]: ...
+    def embed(self, texts: list[str], is_query: bool = False, max_wait_s: float = 90.0) -> list[list[float]]: ...
 
 
 class Scorer(Protocol):
-    def score(self, query: str, items: dict[str, str]) -> dict[str, float]: ...
+    def score(self, query: str, items: dict[str, str], max_wait_s: float = 90.0) -> dict[str, float]: ...
 
 
 # Response shapes, validated with Pydantic.
@@ -54,23 +55,37 @@ class SIEClient:
         self.http = httpx.Client(base_url=base_url or config.SIE_BASE_URL, timeout=timeout,
                                  headers={"Authorization": f"Bearer {key}", "Accept": "application/json"})
 
-    def embed(self, texts: list[str], is_query: bool = False) -> list[list[float]]:
+    def _post(self, path: str, body: dict, max_wait_s: float = 90.0) -> httpx.Response:
+        """POST, retrying 503 (model provisioning) and 429 (rate limit) as Retry-After says."""
+        waited = 0.0
+        while True:
+            r = self.http.post(path, json=body)
+            if r.status_code not in (429, 503) or waited >= max_wait_s:
+                r.raise_for_status()
+                return r
+            try:
+                delay = float(r.headers.get("Retry-After", "5"))
+            except ValueError:
+                delay = 5.0
+            delay = max(1.0, min(delay, 15.0, max_wait_s - waited))
+            time.sleep(delay)
+            waited += delay
+
+    def embed(self, texts: list[str], is_query: bool = False, max_wait_s: float = 90.0) -> list[list[float]]:
         out: list[list[float]] = []
         for i in range(0, len(texts), 64):
             batch = texts[i:i + 64]
             body = {"items": [{"id": str(j), "text": t} for j, t in enumerate(batch)],
                     "params": {"output_types": ["dense"], "options": {"is_query": is_query}}}
-            r = self.http.post(f"/v1/encode/{quote(config.SIE_EMBED_MODEL, safe='')}", json=body)
-            r.raise_for_status()
+            r = self._post(f"/v1/encode/{quote(config.SIE_EMBED_MODEL, safe='')}", body, max_wait_s)
             out.extend(it.dense.values for it in _EncodeResp.model_validate(r.json()).items)
         return out
 
-    def score(self, query: str, items: dict[str, str]) -> dict[str, float]:
+    def score(self, query: str, items: dict[str, str], max_wait_s: float = 90.0) -> dict[str, float]:
         if not items:
             return {}
         body = {"query": {"text": query}, "items": [{"id": k, "text": v} for k, v in items.items()]}
-        r = self.http.post(f"/v1/score/{quote(config.SIE_RERANK_MODEL, safe='')}", json=body)
-        r.raise_for_status()
+        r = self._post(f"/v1/score/{quote(config.SIE_RERANK_MODEL, safe='')}", body, max_wait_s)
         return {s.item_id: s.score for s in _ScoreResp.model_validate(r.json()).scores}
 
 

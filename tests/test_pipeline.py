@@ -32,3 +32,11 @@ def test_p2_pipeline_on_fixtures(mem):
     # every cited evidence id exists in the audit log
     ids = {e.event_id for e in mem.audit}
     assert all(set(e.evidence_ids) <= ids for e in c.get_audit("run-p"))
+
+
+def test_p1_graph_runs_with_seeded_memory(mem):
+    """P1's parse_request reads memory["soft_prefs"] as text; with seeded learned prefs it crashed."""
+    from agent import graph
+    seed()
+    run = graph.run_fixture_demo()
+    assert c.get_audit(run)

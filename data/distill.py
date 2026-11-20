@@ -149,22 +149,75 @@ def configure_cognee(use_sie: bool = True) -> str:
     return "openai"
 
 
+def apply_cognee_config(cognee, use_sie: bool = True) -> str:
+    """Configure Cognee in code after import. Cognee re-reads .env on import and lets it win over
+    os.environ, and P1's .env has LLM_PROVIDER=sie (P1's own switch, same name as Cognee's)."""
+    mode = configure_cognee(use_sie)
+    cfg = getattr(cognee, "config", None)
+    if cfg is None:
+        return mode
+    if mode == "sie":
+        base, key = config.SIE_BASE_URL + "/v1", config.env("SIE_API_KEY")
+        calls = [("set_llm_provider", "custom"), ("set_llm_model", f"openai/{config.SIE_COGNEE_MODEL}"),
+                 ("set_llm_endpoint", base), ("set_llm_api_key", key),
+                 ("set_embedding_provider", "openai_compatible"),
+                 ("set_embedding_model", f"openai/{config.SIE_EMBED_MODEL}"),
+                 ("set_embedding_endpoint", base), ("set_embedding_api_key", key),
+                 ("set_embedding_dimensions", config.EMBED_DIM)]
+    elif mode == "openai":
+        calls = [("set_llm_provider", "openai"), ("set_llm_api_key", config.env("OPENAI_API_KEY"))]
+    else:
+        calls = []
+    for name, value in calls:
+        fn = getattr(cfg, name, None)
+        if fn is not None:
+            fn(value)
+    return mode
+
+
 async def _cognee():
     import cognee  # optional dependency: uv sync --extra memory
+    apply_cognee_config(cognee, use_sie=os.environ.get("MEALMATCH_COGNEE_MODE", "sie") == "sie")
     if config.env("COGNEE_API_KEY"):
         await cognee.serve(url=config.env("COGNEE_SERVICE_URL") or None, api_key=config.env("COGNEE_API_KEY"))
     return cognee
 
 
-async def cognee_remember(texts: list[str]) -> None:
-    cognee = await _cognee()
-    for t in texts:
-        await cognee.remember(t)
-    await cognee.improve()
+COGNEE_DATASET = "mealmatch"
 
 
-async def cognee_recall(query: str) -> list[str]:
+async def cognee_remember(texts: list[str], dataset: str = COGNEE_DATASET) -> dict:
+    """On Cognee Cloud, remember() returns {"status": "running"} and builds the graph remotely,
+    with self-improvement on by default. Calling improve() right after only conflicts (409)."""
     cognee = await _cognee()
-    res = await cognee.recall(query)
+    res = await cognee.remember(texts, dataset_name=dataset)
+    return res if isinstance(res, dict) else {"status": str(res)}
+
+
+def _texts(res) -> list[str]:
     items = res if isinstance(res, list) else [res]
-    return [str(getattr(r, "text", None) or r) for r in items if r]
+    out = []
+    for r in items:
+        if isinstance(r, dict):
+            out.append(str(r.get("text") or (r.get("raw") or {}).get("value") or ""))
+        else:
+            out.append(str(getattr(r, "text", None) or r))
+    return [t for t in out if t]
+
+
+async def cognee_recall(query: str, dataset: str = COGNEE_DATASET, only_context: bool = False,
+                        wait_s: float = 0.0) -> list[str]:
+    """Recall from Cognee. With wait_s > 0, retry while the dataset is still being processed
+    (Cloud answers 404 "no searchable memory" or 409 until remember() finishes)."""
+    import asyncio
+    cognee = await _cognee()
+    waited = 0.0
+    while True:
+        try:
+            return _texts(await cognee.recall(query, datasets=[dataset], only_context=only_context))
+        except RuntimeError as exc:
+            busy = any(code in str(exc) for code in ("(404)", "(409)"))
+            if not busy or waited >= wait_s:
+                raise
+            await asyncio.sleep(10)
+            waited += 10

@@ -121,6 +121,7 @@ def explain(state: dict) -> dict:
 
 
 _PICK = re.compile(r"^\s*(?:option\s*|#)?([1-9])\b", re.I)
+_NOT = re.compile(r"^\s*not\s+(?:option\s*|#)?([1-9])\b\s*[:,.-]?\s*(.*)$", re.I | re.S)  # "not 2: too slow"
 
 
 def select_option(state: dict) -> dict:
@@ -136,8 +137,14 @@ def select_option(state: dict) -> dict:
         eid = audit("approval", {"decision": "select", "offer_id": sel["offer"]["offer_id"], "text": answer})
         log_event("option_selected", {"run_id": state.get("run_id"), "rank": int(m.group(1))})
         return {"selected": sel, "feedback": "", "user_event_id": eid}
+    m = _NOT.match(answer)
+    if m and int(m.group(1)) <= len(shown):   # reject one option, keep the others in play
+        oid = shown[int(m.group(1)) - 1]["offer"]["offer_id"]
+        eid = audit("approval", {"decision": "reject_one", "offer_id": oid, "text": answer})
+        return {"selected": None, "feedback": m.group(2).strip() or f"not option {m.group(1)}",
+                "user_event_id": eid, "reject_one": oid}
     eid = audit("approval", {"decision": "none_of_these", "text": answer})
-    return {"selected": None, "feedback": answer, "user_event_id": eid}
+    return {"selected": None, "feedback": answer, "user_event_id": eid, "reject_one": None}
 
 
 def route_after_select(state: dict) -> str:
@@ -230,6 +237,10 @@ def handle_feedback(state: dict) -> dict:
     fb = read_feedback(state.get("feedback", ""), state.get("shown"))
     if state.get("selected"):
         newly = [state["selected"]["offer"]["offer_id"]]
+    elif state.get("reject_one"):
+        newly = [state["reject_one"]]
+        if fb["route"] == "done":   # one option turned down is not "stop": show the next ones
+            fb = {**fb, "route": "more"}
     else:
         newly = [o["offer"]["offer_id"] for o in (state.get("shown") or [])] if fb["route"] == "more" else []
     rejected = list(dict.fromkeys([*state.get("rejected", []), *newly]))
@@ -243,7 +254,7 @@ def handle_feedback(state: dict) -> dict:
                         "new_hard_rules": fb["new_hard_rules"], "round": rnd},
           [state.get("user_event_id")] if state.get("user_event_id") else [])
     out = {"rejected": rejected, "route": fb["route"], "round": rnd, "selected": None,
-           "approval": None, "constraints": c.model_dump()}
+           "approval": None, "constraints": c.model_dump(), "reject_one": None}
     if fb["route"] == "new":
         # The user's own words, not the LLM's paraphrase: hard rules may only come from the user.
         out["request_text"] = state.get("feedback", "") or fb["new_request"]

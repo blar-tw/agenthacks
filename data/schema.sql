@@ -29,7 +29,7 @@ CREATE TABLE IF NOT EXISTS interactions (
   user_id VARCHAR(64) NOT NULL,
   run_id VARCHAR(64),
   shown JSON,
-  selected VARCHAR(128),
+  selected VARCHAR(255),
   rejected JSON,
   rejected_restaurants JSON,
   reason TEXT,
@@ -50,8 +50,8 @@ CREATE TABLE IF NOT EXISTS preferences (
 );
 
 CREATE TABLE IF NOT EXISTS price_snapshots (
-  offer_id VARCHAR(64) PRIMARY KEY,
-  run_id VARCHAR(64),
+  offer_id VARCHAR(255) NOT NULL,
+  run_id VARCHAR(64) NOT NULL,
   source VARCHAR(16) NOT NULL,
   restaurant VARCHAR(255) NOT NULL,
   restaurant_address VARCHAR(255),
@@ -63,7 +63,8 @@ CREATE TABLE IF NOT EXISTS price_snapshots (
   url TEXT,
   scraped_at DATETIME(6) NOT NULL,
   evidence_id VARCHAR(64),
-  dish_vec VECTOR({dim})
+  dish_vec VECTOR({dim}),
+  PRIMARY KEY (offer_id, run_id)
 );
 
 CREATE TABLE IF NOT EXISTS matches (

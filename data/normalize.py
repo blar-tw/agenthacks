@@ -1,12 +1,12 @@
 """normalize: raw Actor output from both platforms -> contracts.Offer, with source and time."""
 from __future__ import annotations
 
-import hashlib
+import html
 import re
 from datetime import datetime
 from typing import Any, Iterable
 
-from contracts import Offer
+from contracts import Offer, stable_offer_id
 from data.actors import SearchResult
 
 _MONEY = re.compile(r"(\d+(?:\.\d{1,2})?)")
@@ -41,6 +41,11 @@ def parse_minutes(v: Any) -> int | None:
     return max(nums) if nums else None
 
 
+def _text(v: Any) -> str:
+    """Uber Eats names come HTML-escaped ("Z&amp;Y Restaurant")."""
+    return html.unescape(str(v or "")).strip()
+
+
 def _first(d: dict[str, Any], *keys: str) -> Any:
     for k in keys:
         v = d.get(k)
@@ -60,9 +65,10 @@ def _time(v: Any, default: datetime) -> datetime:
     return default
 
 
-def offer_id(platform: str, store: str, item: str, scraped_at: datetime) -> str:
-    """Stable per snapshot: the same scrape always gives the same id."""
-    return "off_" + hashlib.sha1(f"{platform}|{store}|{item}|{scraped_at.isoformat()}".encode()).hexdigest()[:12]
+def offer_id(platform: str, restaurant: str, item: str) -> str:
+    """P1's contracts.stable_offer_id: the same dish keeps its id across scrapes, so rejected[]
+    survives a re-scrape. Each scrape is still its own price snapshot: (offer_id, run_id)."""
+    return stable_offer_id(platform, restaurant, item)
 
 
 def _offer(res: SearchResult, store: dict[str, Any], item: dict[str, Any]) -> Offer | None:
@@ -72,14 +78,13 @@ def _offer(res: SearchResult, store: dict[str, Any], item: dict[str, Any]) -> Of
     if not name or price is None or not restaurant:
         return None
     scraped = _time(_first(item, "scrapedAt", "scraped_at") or _first(store, "scrapedAt"), res.scraped_at)
-    store_key = str(_first(store, "storeId", "url", "storeUrl") or restaurant)
     fees = parse_money(_first(store, "deliveryFee", "delivery_fee", "fees"))
     o = Offer(
-        offer_id=offer_id(res.platform, store_key, str(name), scraped),
-        restaurant=str(restaurant).strip(),
-        restaurant_address=str(_first(store, "address", "restaurant_address", "storeAddress") or ""),
-        item=str(name).strip(),
-        description=str(_first(item, "description") or "").strip(),
+        offer_id=offer_id(res.platform, _text(restaurant), _text(name)),
+        restaurant=_text(restaurant),
+        restaurant_address=_text(_first(store, "address", "restaurant_address", "storeAddress")),
+        item=_text(name),
+        description=_text(_first(item, "description")),
         price=price,
         fees=fees if fees is not None else 0.0,
         eta_min=parse_minutes(_first(store, "etaMinutes", "eta_min", "eta", "etaRange")),

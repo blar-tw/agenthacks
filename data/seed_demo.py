@@ -52,8 +52,37 @@ def seed(user_id: str = DEMO_USER) -> dict:
             "learned": [(p["text"], p.get("episode_ids", [])) for p in learned]}
 
 
+def seed_cognee(user_id: str = DEMO_USER) -> list[str]:
+    """Send every demo episode to Cognee (with its ID in the text), then recall what was learned.
+    The normal distiller only sends episodes newer than the bookmark; this backfills the demo user."""
+    import asyncio
+
+    from data import distill
+
+    orders, rejections = distill.history(user_id)
+    texts = [distill.episode_text(e) for e in [*orders, *rejections]]
+    q = "What food does the user like or dislike? Cite the episode IDs in brackets."
+
+    async def go() -> list[str]:
+        await distill.cognee_remember(texts)
+        out: list[str] = []
+        for _ in range(12):   # Cloud builds the graph in the background
+            out = await distill.cognee_recall(q, wait_s=120)
+            if any(distill.EPISODE_REF.search(t) for t in out):
+                break
+            await asyncio.sleep(10)
+        return out
+
+    return asyncio.run(go())
+
+
 if __name__ == "__main__":
+    import sys
+
     out = seed()
     print(f"seeded {out['orders']} demo orders; distiller learned {out['learned_now']} preference(s) this run")
     for text, ids in out["learned"]:
         print(f"learned: {text} <- {', '.join(ids)}")
+    if "--cognee" in sys.argv:
+        for text in seed_cognee():
+            print(f"cognee recall: {text}")

@@ -51,14 +51,42 @@ def _singular(w: str) -> str:
     return w[:-2]   # tomatoes -> tomato
 
 
-def request_words(c: Constraints) -> list[str]:
-    words = re.findall(r"[a-z]+", f"{c.dish_query} {c.cuisine or ''}".lower())
-    return sorted({_singular(w) for w in words if w not in _STOP and len(w) > 2})
+_CUISINES = {"chinese", "thai", "indian", "mexican", "italian", "japanese", "korean", "vietnamese", "american",
+             "french", "greek", "mediterranean", "sichuan", "szechuan", "cantonese", "hunan"}
 
 
-def relevant(offer: Offer, words: list[str]) -> bool:
-    hay = f"{offer.item} {offer.description} {offer.restaurant}".lower()
-    return any(_has(t, hay) for w in words for t in RELEVANCE_TERMS.get(w, [w]))
+# Real menus list drinks, plain rice and condiments next to meals; the cheapest "spicy" item on a
+# real menu was "House Hot Mustard 2oz". These are never the answer unless the request names them.
+_ADDON = re.compile(r"\b\d+\s?oz\b|^side\b|\bside of\b|\badd[- ]?on\b|^extra\b", re.I)
+_DISH_LINK = re.compile(r"\b(?:in|with|wit|and|w)\b|w/|w\.", re.I)   # "Eggplant in Garlic Sauce" is a dish
+_DRINK_OR_PLAIN = re.compile(r"^(?:diet |house )?(?:coke|coca[- ]?cola|sprite|fanta|7[- ]?up|pepsi|soda|bottled water|water"
+                             r"|.*\btea|.*\bjuice|.*\bmilkshake|.*\blemonade|soy milk|(?:steamed )?(?:white |brown |jasmine )*rice)$",
+                             re.I)
+
+
+def is_side(offer: Offer) -> bool:
+    """A drink, plain rice, sauce or add-on rather than a dish (names are matched without the Chinese text)."""
+    name = re.sub(r"\([^)]*\)|[^\x00-\x7f]", " ", offer.item)
+    name = re.sub(r"\s+", " ", name).strip()
+    just_sauce = bool(re.search(r"\b(?:sauce|dressing)$", name, re.I)) and not _DISH_LINK.search(name)
+    return bool(_ADDON.search(name) or _DRINK_OR_PLAIN.match(name) or just_sauce)
+
+
+def _words(text: str) -> list[str]:
+    return sorted({_singular(w) for w in re.findall(r"[a-z]+", text.lower()) if w not in _STOP and len(w) > 2})
+
+
+def request_words(c: Constraints) -> tuple[list[str], bool]:
+    """(words, dish_only). Dish words match the dish itself; with none, the cuisine may match the restaurant."""
+    dish = _words(c.dish_query)
+    specific = [w for w in dish if w not in _CUISINES]
+    dish = specific or dish   # "spicy Chinese food": "spicy" says more than "chinese"
+    return (dish, True) if dish else (_words(c.cuisine or ""), False)
+
+
+def relevant(offer: Offer, words: list[str], dish_only: bool = True) -> bool:
+    hay = f"{offer.item} {offer.description}" + ("" if dish_only else f" {offer.restaurant}")
+    return any(_has(t, hay.lower()) for w in words for t in RELEVANCE_TERMS.get(w, [w]))
 
 
 def _has(word: str, text: str) -> bool:
@@ -87,9 +115,17 @@ def est_total(o: Offer, people: int) -> float:
     return round(o.price * max(people, 1) + (o.fees or 0.0), 2)
 
 
+def _text(p) -> str:
+    return p if isinstance(p, str) else (p or {}).get("text", "")
+
+
 def hard_terms(c: Constraints, memory: dict | None) -> list[str]:
-    rules = [r for r in (memory or {}).get("rules", []) if r.get("kind", "hard") == "hard"]
-    return sorted({term_of(x) for x in c.hard_excludes} | {r.get("term") or term_of(r.get("text", "")) for r in rules})
+    """Hard rules from the request plus memory: P1's hard_rules (text) and P2's rules (with term)."""
+    mem = memory or {}
+    rules = [r for r in mem.get("rules", []) if r.get("kind", "hard") == "hard"]
+    terms = {term_of(x) for x in c.hard_excludes} | {term_of(_text(x)) for x in mem.get("hard_rules", [])}
+    terms |= {r.get("term") or term_of(r.get("text", "")) for r in rules}
+    return sorted(t for t in terms if t)
 
 
 @dataclass
@@ -105,6 +141,8 @@ def filter_offers(offers: list[Offer], c: Constraints, memory: dict | None, matc
     for m in matches:
         a, b = m.offer_ids
         partner[a], partner[b] = (b, m.match_id), (a, m.match_id)
+    # Turning down a dish turns down the same dish on the other platform too.
+    rejected = list(dict.fromkeys([*rejected, *(partner[r][0] for r in rejected if r in partner)]))
 
     removed: list[dict] = []
     ok: dict[str, Offer] = {}
@@ -116,13 +154,20 @@ def filter_offers(offers: list[Offer], c: Constraints, memory: dict | None, matc
             removed.append({"offer_id": o.offer_id, "reason": f"hard rule: no {t}"}); continue
         allowed.append(o)
 
-    words = request_words(c)
-    on_topic = [o for o in allowed if relevant(o, words)] if words else allowed
+    words, dish_only = request_words(c)
+    on_topic = [o for o in allowed if relevant(o, words, dish_only)] if words else allowed
     if on_topic:   # if no dish matches the request words, the gate is off and the ranker decides
         keep = {o.offer_id for o in on_topic}
         removed += [{"offer_id": o.offer_id, "reason": f"not what was asked for ({', '.join(words)})"}
                     for o in allowed if o.offer_id not in keep]
         allowed = on_topic
+
+    asked = set(_words(c.dish_query))
+    meals = [o for o in allowed if not is_side(o) or asked & set(_words(o.item))]
+    if meals:   # never empty the list just because everything left is a side
+        keep = {o.offer_id for o in meals}
+        removed += [{"offer_id": o.offer_id, "reason": "side, drink or add-on"} for o in allowed if o.offer_id not in keep]
+        allowed = meals
 
     for o in allowed:
         total = est_total(o, c.people)
@@ -156,7 +201,7 @@ def rank_price(options: list[RankedOption], people: int) -> list[RankedOption]:
 
 def rerank_query(c: Constraints, memory: dict | None) -> str:
     parts = [c.dish_query or c.raw_text or ", ".join(filter(None, [c.cuisine, *c.soft_prefs]))]
-    soft = list(c.soft_prefs) + [p.get("text", "") for p in (memory or {}).get("soft_prefs", [])]
+    soft = list(c.soft_prefs) + [_text(p) for p in (memory or {}).get("soft_prefs", [])]
     soft = [s for s in dict.fromkeys(soft) if s]
     if soft:
         parts.append("The user prefers: " + "; ".join(soft))
@@ -164,10 +209,9 @@ def rerank_query(c: Constraints, memory: dict | None) -> str:
 
 
 def rank_reranker(options: list[RankedOption], c: Constraints, memory: dict | None, scorer: Scorer,
-                  bad_restaurants: set[str] | None = None) -> list[RankedOption]:
-    scores = scorer.score(rerank_query(c, memory),
-                          {r.offer.offer_id: f"{r.offer.item}: {r.offer.description} ({r.offer.restaurant})"
-                           for r in options})
+                  bad_restaurants: set[str] | None = None, max_wait_s: float = 90.0) -> list[RankedOption]:
+    items = {r.offer.offer_id: f"{r.offer.item}: {r.offer.description} ({r.offer.restaurant})" for r in options}
+    scores = scorer.score(rerank_query(c, memory), items, max_wait_s=max_wait_s)
     bad = {x.lower() for x in (bad_restaurants or set())}
     for i in (memory or {}).get("rejections", []):
         bad |= {x.lower() for x in i.get("rejected_restaurants", [])}
