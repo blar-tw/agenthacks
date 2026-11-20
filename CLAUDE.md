@@ -8,7 +8,7 @@ that doesn't.
 
 ## Shared context: the MealMatch doc
 
-The team's shared context layer is the MealMatch doc: <DOC_URL>.
+The team's shared context layer is the MealMatch doc: https://claude.ai/artifact/LPeJdBtNwtP7MVPgqd7RAe.
 Read and write it through the Claude Docs connector.
 
 - **Read it** before you start a task, and whenever a question touches
