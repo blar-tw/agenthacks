@@ -11,6 +11,8 @@ in-memory checkpointer loses paused runs.
 
 from __future__ import annotations
 
+import contextvars
+import threading
 import uuid
 from pathlib import Path
 from typing import Literal, Optional
@@ -24,7 +26,7 @@ from pydantic import BaseModel, Field
 load_dotenv()
 
 from agent.graph import NODE_SOURCES, chat, get_graph  # noqa: E402
-from contracts import get_audit, read_orders  # noqa: E402
+from contracts import get_audit, get_store, read_orders  # noqa: E402
 
 try:   # P3's Statsig ranker flag and event sink; without a key the agent keeps its defaults
     from sim_ui import analytics  # noqa: E402
@@ -73,19 +75,78 @@ def _action_text(action: Action, values: dict, waiting_for: Optional[str]) -> st
     return f"not {n}: {reason}" if reason else f"not {n}"
 
 
+# ---- live audit tap: the UI polls GET /live/{thread_id} while POST /chat is still running.
+# It copies each audit event as the store receives it; the store itself is unchanged.
+_LIVE_THREAD: contextvars.ContextVar[Optional[str]] = contextvars.ContextVar("live_thread", default=None)
+_LIVE: dict[str, list[dict]] = {}          # run_id -> events in arrival order
+_THREAD_RUN: dict[str, Optional[str]] = {}  # thread_id -> run_id of its current turn
+_BUSY: set[str] = set()
+_LIVE_LOCK = threading.Lock()
+
+
+def _live_copy(events) -> None:
+    thread = _LIVE_THREAD.get()
+    with _LIVE_LOCK:
+        for e in events:
+            _LIVE.setdefault(e.run_id, []).append(e.model_dump(mode="json"))
+            if thread:
+                _THREAD_RUN[thread] = e.run_id
+
+
+def _installed_store():
+    try:   # P2's store picks SingleStore or memory on first use; do it before tapping or reading
+        from data import store as data_store
+        data_store.install()
+    except Exception:
+        pass
+    return get_store()
+
+
+def _tap_store() -> None:
+    store = _installed_store()
+    if getattr(store, "_live_tapped", False):
+        return
+    add_one = store.add_audit
+
+    def add_audit(event):
+        add_one(event)
+        _live_copy([event])
+    store.add_audit = add_audit
+    if hasattr(store, "add_audits"):
+        add_many = store.add_audits
+
+        def add_audits(events):
+            add_many(events)
+            _live_copy(events)
+        store.add_audits = add_audits
+    store._live_tapped = True
+
+
 @app.post("/chat")
 def post_chat(body: ChatIn) -> dict:
     thread = body.thread_id or body.session_id or f"t_{uuid.uuid4().hex[:10]}"
     config = {"configurable": {"thread_id": thread}}
     message = body.message
+    snap = get_graph().get_state(config)
+    paused = bool(snap.next and snap.interrupts)
     if body.action is not None:
-        snap = get_graph().get_state(config)
-        waiting = snap.interrupts[0].value.get("type") if snap.next and snap.interrupts else None
+        waiting = snap.interrupts[0].value.get("type") if paused else None
         message = _action_text(body.action, snap.values, waiting)
     if not message.strip():
         raise HTTPException(400, "send a message or an action")
 
-    out = chat(thread, message, body.user_id)
+    _tap_store()
+    with _LIVE_LOCK:
+        _THREAD_RUN[thread] = snap.values.get("run_id") if paused else None
+        _BUSY.add(thread)
+    token = _LIVE_THREAD.set(thread)
+    try:
+        out = chat(thread, message, body.user_id)
+    finally:
+        _LIVE_THREAD.reset(token)
+        with _LIVE_LOCK:
+            _THREAD_RUN[thread] = _THREAD_RUN.get(thread) or None
+            _BUSY.discard(thread)
     v = get_graph().get_state(config).values
     status = out["status"]
     return {
@@ -108,6 +169,30 @@ def audit_trail(run_id: str) -> dict:
     if not events:
         raise HTTPException(404, f"no audit events for {run_id}")
     return {"run_id": run_id, "events": [e.model_dump(mode="json") for e in events]}
+
+
+@app.get("/live/{thread_id}")
+def live(thread_id: str, after: int = 0) -> dict:
+    """Audit events of the thread's current turn, from index `after` on, while it runs."""
+    with _LIVE_LOCK:
+        run_id = _THREAD_RUN.get(thread_id)
+        events = list(_LIVE.get(run_id, [])[after:]) if run_id else []
+        busy = thread_id in _BUSY
+    return {"run_id": run_id, "after": after, "events": events, "busy": busy}
+
+
+@app.get("/memory/{user_id}")
+def memory(user_id: str) -> dict:
+    """What the agent can recall about a user, for the UI's memory view."""
+    store = _installed_store()
+    out = {"user_id": user_id, "orders": [], "interactions": [], "preferences": []}
+    for key, fn, args in (("orders", "read_orders", (user_id, 8)), ("interactions", "read_interactions", (user_id, 8)),
+                          ("preferences", "read_preferences", (user_id,))):
+        try:
+            out[key] = getattr(store, fn)(*args)
+        except Exception as e:  # the view is optional; never fail the page over it
+            out[key + "_error"] = type(e).__name__
+    return out
 
 
 @app.get("/orders/{user_id}")

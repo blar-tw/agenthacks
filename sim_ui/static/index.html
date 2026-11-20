@@ -6,13 +6,16 @@
 <title>MealMatch</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet">
+<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+<script src="https://unpkg.com/deck.gl@9.0.38/dist.min.js"></script>
 <style>
 :root {
   --bg: #f6f5f2; --surface: #ffffff; --surface-2: #f0eee9; --border: #e3e0d8;
   --text: #1d1b17; --muted: #6b665c; --accent: #d9480f; --accent-ink: #ffffff;
   --ok: #2b8a3e; --warn: #c27c0e; --bad: #c92a2a;
   --k-evidence: #1971c2; --k-inference: #7048e8; --k-action: #d9480f; --k-approval: #2b8a3e;
-  --ue: #06c167; --dd: #eb1700;
+  --ue: #06c167; --dd: #eb1700; --mem: #7048e8; --rule: #c92a2a;
   --shadow: 0 1px 2px rgba(0,0,0,.04), 0 4px 16px rgba(0,0,0,.05);
   --radius: 14px;
 }
@@ -22,6 +25,7 @@
     --text: #f1eee7; --muted: #a39d90; --accent: #ff6b2c; --accent-ink: #14130f;
     --ok: #51cf66; --warn: #fcc419; --bad: #ff6b6b;
     --k-evidence: #4dabf7; --k-inference: #9775fa; --k-action: #ff8a4c; --k-approval: #51cf66;
+    --mem: #9775fa; --rule: #ff6b6b;
     --shadow: 0 1px 2px rgba(0,0,0,.3), 0 4px 16px rgba(0,0,0,.25);
   }
 }
@@ -30,6 +34,7 @@
   --text: #f1eee7; --muted: #a39d90; --accent: #ff6b2c; --accent-ink: #14130f;
   --ok: #51cf66; --warn: #fcc419; --bad: #ff6b6b;
   --k-evidence: #4dabf7; --k-inference: #9775fa; --k-action: #ff8a4c; --k-approval: #51cf66;
+  --mem: #9775fa; --rule: #ff6b6b;
   --shadow: 0 1px 2px rgba(0,0,0,.3), 0 4px 16px rgba(0,0,0,.25);
 }
 * { box-sizing: border-box; }
@@ -38,10 +43,9 @@ body { background: var(--bg); color: var(--text); font: 15px/1.5 Inter, system-u
 button { font: inherit; cursor: pointer; }
 .mono { font-family: "JetBrains Mono", ui-monospace, monospace; }
 
-.app { display: grid; grid-template-columns: minmax(0, 1fr) 400px; height: 100vh; }
+.app { display: grid; grid-template-columns: minmax(0, 1fr) 390px; height: 100vh; }
 header { display: flex; align-items: center; gap: 10px; padding: 14px 20px; border-bottom: 1px solid var(--border); }
-.logo { width: 30px; height: 30px; border-radius: 9px; background: var(--accent); color: var(--accent-ink);
-        display: grid; place-items: center; font-weight: 700; }
+.logo { width: 30px; height: 30px; border-radius: 9px; background: var(--accent); color: var(--accent-ink); display: grid; place-items: center; font-weight: 700; }
 header h1 { font-size: 17px; margin: 0; font-weight: 700; }
 header .sub { color: var(--muted); font-size: 13px; }
 header .spacer { flex: 1; }
@@ -50,11 +54,10 @@ header .spacer { flex: 1; }
 .pill.down::before { content: "● "; color: var(--bad); }
 .icon-btn { background: none; border: 1px solid var(--border); color: var(--text); border-radius: 8px; padding: 5px 10px; font-size: 13px; }
 
-/* chat column */
 .main { display: flex; flex-direction: column; min-height: 0; }
 .thread { flex: 1; overflow-y: auto; padding: 24px 20px; }
-.thread-inner { max-width: 760px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; }
-.msg { max-width: 85%; padding: 10px 14px; border-radius: var(--radius); white-space: pre-wrap; }
+.thread-inner { max-width: 980px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; }
+.msg { max-width: 80%; padding: 10px 14px; border-radius: var(--radius); white-space: pre-wrap; }
 .msg.user { align-self: flex-end; background: var(--accent); color: var(--accent-ink); border-bottom-right-radius: 4px; }
 .msg.agent { align-self: flex-start; background: var(--surface); border: 1px solid var(--border); border-bottom-left-radius: 4px; }
 .msg.error { align-self: flex-start; color: var(--bad); background: none; border: 1px dashed var(--bad); }
@@ -66,12 +69,116 @@ header .spacer { flex: 1; }
 .suggest button { background: var(--surface); border: 1px solid var(--border); color: var(--text); padding: 8px 14px; border-radius: 99px; }
 .suggest button:hover { border-color: var(--accent); }
 
-.constraints { display: flex; flex-wrap: wrap; gap: 6px; align-self: flex-start; }
-.constraints .pill b { color: var(--text); font-weight: 600; }
+/* ---------- process card */
+.run { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden; }
+.steps { display: flex; gap: 4px; padding: 10px 12px; border-bottom: 1px solid var(--border); overflow-x: auto; }
+.step { display: flex; align-items: center; gap: 6px; white-space: nowrap; font-size: 12.5px; padding: 5px 10px; border-radius: 99px; border: 1px solid transparent; background: none; color: var(--muted); }
+.step .n { width: 18px; height: 18px; border-radius: 50%; display: grid; place-items: center; font-size: 10.5px; background: var(--surface-2); color: var(--muted); font-weight: 600; }
+.step.done .n { background: var(--ok); color: #fff; }
+.step.active { border-color: var(--accent); color: var(--text); }
+.step.active .n { background: var(--accent); color: var(--accent-ink); animation: pulse 1.2s infinite; }
+.step.shown { background: var(--surface-2); color: var(--text); }
+@keyframes pulse { 50% { box-shadow: 0 0 0 5px color-mix(in srgb, var(--accent) 25%, transparent); } }
+.stage { position: relative; height: 390px; }
+.panel { position: absolute; inset: 0; display: none; }
+.panel.on { display: block; animation: fadein .35s; }
+@keyframes fadein { from { opacity: 0; transform: translateY(6px); } }
+.cap { position: absolute; left: 14px; top: 12px; z-index: 3; max-width: 70%; pointer-events: none; }
+.cap h4 { margin: 0; font-size: 15px; letter-spacing: -.01em; }
+.cap p { margin: 2px 0 0; font-size: 12.5px; color: var(--muted); }
+.tag { display: inline-block; font-size: 10.5px; font-weight: 600; padding: 1px 7px; border-radius: 6px; border: 1px solid currentColor; margin-right: 4px; }
+.wait { position: absolute; right: 14px; top: 14px; font-size: 12px; color: var(--muted); z-index: 3; display: none; }
+.run.busy .wait { display: block; }
+.wait::before { content: ""; display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); margin-right: 6px; animation: pulse 1.2s infinite; }
+svg text { font-family: Inter, system-ui, sans-serif; }
+
+/* memory graph */
+.mg-node { opacity: 0; animation: pop .45s cubic-bezier(.2,1.4,.4,1) forwards; transform-box: fill-box; transform-origin: center; }
+@keyframes pop { from { opacity: 0; transform: scale(.4); } to { opacity: 1; transform: scale(1); } }
+.mg-edge { stroke-dasharray: 600; stroke-dashoffset: 600; animation: draw .9s ease forwards; fill: none; }
+@keyframes draw { to { stroke-dashoffset: 0; } }
+
+/* parse */
+.parse { position: absolute; inset: 66px 18px 18px; display: flex; flex-direction: column; gap: 18px; }
+.req { font-size: 17px; line-height: 1.55; background: var(--surface-2); border-radius: 12px; padding: 14px 16px; }
+.req mark { background: color-mix(in srgb, var(--accent) 22%, transparent); color: inherit; border-radius: 4px; padding: 0 2px; transition: background .4s; }
+.chips { display: flex; flex-wrap: wrap; gap: 10px; }
+.cchip { border: 1px solid var(--border); border-radius: 12px; padding: 8px 12px; min-width: 110px; opacity: 0; transform: translateY(10px); transition: all .4s; background: var(--surface); }
+.cchip.in { opacity: 1; transform: none; }
+.cchip small { display: block; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
+.cchip b { font-size: 16px; }
+.cchip.rule { border-color: var(--rule); }
+.cchip.rule b { color: var(--rule); }
+.cchip em { font-style: normal; font-size: 10.5px; color: var(--mem); display: block; }
+
+/* map */
+.mapbox { position: absolute; inset: 0; }
+.maplabel { font: 600 11.5px Inter, sans-serif; background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 8px; padding: 3px 7px; box-shadow: var(--shadow); white-space: nowrap; transform: translateY(14px); }
+.maplabel .c { font-weight: 500; font-size: 10.5px; color: var(--muted); }
+.maplabel.below { transform: translate(60px, 50px); }
+.maplabel.you { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.counter { position: absolute; right: 14px; bottom: 14px; z-index: 3; display: flex; gap: 8px; }
+.counter div { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 6px 10px; box-shadow: var(--shadow); text-align: right; }
+.counter b { font-size: 20px; display: block; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.counter small { font-size: 11px; color: var(--muted); }
+.counter .ue b { color: var(--ue); } .counter .dd b { color: var(--dd); }
+
+/* match */
+.ticker { position: absolute; left: 14px; bottom: 12px; right: 14px; display: flex; flex-direction: column; gap: 3px; font-size: 12px; z-index: 3; }
+.tick { display: flex; gap: 8px; align-items: center; animation: fadein .3s; }
+.tick .bar { width: 46px; height: 5px; background: var(--surface-2); border-radius: 3px; overflow: hidden; flex: none; }
+.tick .bar i { display: block; height: 100%; background: var(--k-inference); }
+.tick span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* funnel */
+.funnel { position: absolute; inset: 70px 18px 14px; display: flex; flex-direction: column; gap: 7px; }
+.frow { display: grid; grid-template-columns: 170px 1fr 54px; gap: 10px; align-items: center; font-size: 12.5px; }
+.frow .track { height: 22px; background: var(--surface-2); border-radius: 6px; position: relative; overflow: hidden; }
+.frow .fill { position: absolute; top: 0; bottom: 0; left: 0; width: 0; border-radius: 6px; transition: width .9s cubic-bezier(.2,.8,.2,1); }
+.frow .num { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
+.frow.cut .fill { background: color-mix(in srgb, var(--bad) 70%, transparent); }
+.frow.keep .fill { background: var(--ok); }
+.frow.all .fill { background: var(--k-evidence); }
+.frow.top .fill { background: var(--accent); }
+
+/* rank */
+.rank { position: absolute; inset: 62px 18px 14px; display: flex; flex-direction: column; gap: 10px; }
+.rrow { display: grid; grid-template-columns: 26px 1fr 70px; gap: 10px; align-items: center; opacity: 0; transform: translateX(-12px); transition: all .45s; }
+.rrow.in { opacity: 1; transform: none; }
+.rrow .pos { width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; font-weight: 700; background: var(--surface-2); }
+.rrow:first-child .pos { background: var(--accent); color: var(--accent-ink); }
+.rrow .nm { font-size: 13.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rrow .sbar { height: 7px; background: var(--surface-2); border-radius: 4px; margin-top: 4px; overflow: hidden; }
+.rrow .sbar i { display: block; height: 100%; width: 0; background: var(--k-inference); transition: width .9s; }
+.rrow .pr { text-align: right; font-weight: 700; font-variant-numeric: tabular-nums; }
+.why { font-size: 13px; background: var(--surface-2); border-left: 3px solid var(--k-inference); padding: 8px 12px; border-radius: 0 8px 8px 0; opacity: 0; transition: opacity .5s; }
+.why.in { opacity: 1; }
+
+/* verify, handoff, generic */
+.gauge { position: absolute; inset: 70px 30px auto; }
+.gtrack { position: relative; height: 34px; background: var(--surface-2); border-radius: 8px; }
+.gband { position: absolute; top: 0; bottom: 0; background: color-mix(in srgb, var(--ok) 22%, transparent); border-left: 2px dashed var(--ok); border-right: 2px dashed var(--ok); }
+.gmark { position: absolute; top: -8px; bottom: -8px; width: 3px; border-radius: 2px; transition: left 1s cubic-bezier(.2,.8,.2,1); }
+.gmark span { position: absolute; top: 46px; left: 50%; transform: translateX(-50%); font-size: 12px; white-space: nowrap; font-weight: 600; }
+.gmark.est { background: var(--k-evidence); } .gmark.est span { color: var(--k-evidence); top: -22px; }
+.gmark.q { background: var(--accent); } .gmark.q span { color: var(--accent); }
+.verdict { position: absolute; left: 30px; right: 30px; bottom: 26px; font-size: 15px; font-weight: 600; padding: 10px 14px; border-radius: 10px; opacity: 0; transition: opacity .4s; }
+.verdict.in { opacity: 1; }
+.verdict.ok { background: color-mix(in srgb, var(--ok) 13%, transparent); color: var(--ok); }
+.verdict.bad { background: color-mix(in srgb, var(--bad) 13%, transparent); color: var(--bad); }
+.flow { position: absolute; inset: 80px 24px auto; display: flex; align-items: center; justify-content: center; gap: 10px; }
+.fstep { text-align: center; width: 150px; opacity: .25; transition: opacity .5s, transform .5s; }
+.fstep.in { opacity: 1; transform: translateY(-4px); }
+.fstep .ic { width: 64px; height: 64px; border-radius: 18px; margin: 0 auto 8px; display: grid; place-items: center; font-size: 28px; background: var(--surface-2); }
+.fstep.in .ic { background: color-mix(in srgb, var(--ok) 16%, transparent); }
+.fstep b { display: block; font-size: 13.5px; } .fstep small { color: var(--muted); font-size: 11.5px; }
+.farrow { font-size: 22px; color: var(--muted); }
+.glist { position: absolute; inset: 58px 18px 14px; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; font-size: 13px; }
+.glist div { background: var(--surface-2); border-radius: 8px; padding: 7px 10px; animation: fadein .3s; }
 
 /* option cards */
-.options { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
-.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); padding: 14px; display: flex; flex-direction: column; gap: 8px; }
+.options { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); padding: 14px; display: flex; flex-direction: column; gap: 8px; animation: fadein .4s backwards; }
 .card.best { border-color: var(--accent); }
 .card .top { display: flex; align-items: center; gap: 6px; font-size: 12px; }
 .plat { font-weight: 600; padding: 2px 8px; border-radius: 6px; color: #fff; font-size: 11px; }
@@ -81,9 +188,16 @@ header .spacer { flex: 1; }
 .card h3 { margin: 0; font-size: 16px; line-height: 1.3; }
 .card .rest { color: var(--muted); font-size: 13px; margin-top: -6px; }
 .price { font-size: 24px; font-weight: 700; letter-spacing: -.02em; }
-.price small { font-size: 13px; color: var(--muted); font-weight: 500; }
+.price small { display: block; font-size: 12px; color: var(--muted); font-weight: 500; letter-spacing: 0; margin-top: -2px; }
+.vs { display: grid; grid-template-columns: 1fr 1fr; border: 1px solid var(--border); border-radius: 9px; overflow: hidden; font-size: 12.5px; }
+.vs div { padding: 5px 8px; display: flex; justify-content: space-between; gap: 6px; }
+.vs div + div { border-left: 1px solid var(--border); }
+.vs .win { background: color-mix(in srgb, var(--ok) 12%, transparent); font-weight: 600; }
+.vs .na { color: var(--muted); }
 .reasons { list-style: none; padding: 0; margin: 0; font-size: 13px; display: flex; flex-direction: column; gap: 4px; }
 .reasons li { display: flex; gap: 6px; align-items: baseline; flex-wrap: wrap; }
+.reasons .k { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
+.reasons .k.evidence { color: var(--k-evidence); } .reasons .k.inference { color: var(--k-inference); }
 .cite { font-size: 10.5px; border: 1px solid var(--k-evidence); color: var(--k-evidence); background: none; border-radius: 5px; padding: 0 5px; line-height: 17px; }
 .cite:hover { background: var(--k-evidence); color: var(--surface); }
 .card .actions { display: flex; gap: 8px; margin-top: auto; padding-top: 6px; }
@@ -92,9 +206,7 @@ header .spacer { flex: 1; }
 .btn.ok { background: var(--ok); color: #fff; border-color: var(--ok); flex: 1; }
 .btn:disabled { opacity: .45; cursor: default; }
 .btn:not(:disabled):hover { filter: brightness(1.05); }
-
-/* cart */
-.cart { max-width: 440px; }
+.cart { max-width: 460px; }
 .cart table { width: 100%; border-collapse: collapse; font-size: 14px; }
 .cart td { padding: 4px 0; }
 .cart td:last-child { text-align: right; font-variant-numeric: tabular-nums; }
@@ -102,31 +214,37 @@ header .spacer { flex: 1; }
 .check { display: flex; gap: 8px; align-items: center; font-size: 13px; padding: 8px 10px; border-radius: 9px; }
 .check.ok { background: color-mix(in srgb, var(--ok) 12%, transparent); color: var(--ok); }
 .check.warn { background: color-mix(in srgb, var(--warn) 14%, transparent); color: var(--warn); }
-.handoff { display: inline-flex; align-items: center; gap: 8px; background: var(--accent); color: var(--accent-ink);
-           text-decoration: none; font-weight: 600; padding: 12px 18px; border-radius: 11px; align-self: flex-start; }
+.handoff { display: inline-flex; align-items: center; gap: 8px; background: var(--accent); color: var(--accent-ink); text-decoration: none; font-weight: 600; padding: 12px 18px; border-radius: 11px; align-self: flex-start; }
 .fine { font-size: 12px; color: var(--muted); }
 
-/* composer */
 .composer { padding: 14px 20px 18px; border-top: 1px solid var(--border); background: var(--bg); }
-.composer form { max-width: 760px; margin: 0 auto; display: flex; gap: 8px; }
+.composer form { max-width: 980px; margin: 0 auto; display: flex; gap: 8px; }
 .composer input { flex: 1; min-width: 0; font: inherit; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--border); background: var(--surface); color: var(--text); outline: none; }
 .composer input:focus { border-color: var(--accent); }
-.typing { color: var(--muted); font-size: 13px; align-self: flex-start; }
-.typing::after { content: "…"; animation: dots 1s steps(3) infinite; }
-@keyframes dots { 0% { content: "."; } 33% { content: ".."; } 66% { content: "..."; } }
 
-/* audit panel */
+/* ---------- live audit panel */
 .audit { border-left: 1px solid var(--border); background: var(--surface); display: flex; flex-direction: column; min-height: 0; }
 .audit-head { padding: 16px 18px 10px; border-bottom: 1px solid var(--border); }
-.audit-head h2 { margin: 0; font-size: 15px; }
+.audit-head h2 { margin: 0; font-size: 15px; display: flex; align-items: center; gap: 8px; }
+.livedot { font-size: 11px; font-weight: 600; color: var(--muted); border: 1px solid var(--border); border-radius: 99px; padding: 1px 8px; }
+.livedot.on { color: var(--bad); border-color: var(--bad); }
+.livedot.on::before { content: "● "; animation: blink 1s infinite; }
+@keyframes blink { 50% { opacity: .2; } }
 .audit-head .fine { margin-top: 2px; }
-.filters { display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap; }
+.kcount { display: flex; gap: 10px; margin-top: 8px; font-size: 12px; color: var(--muted); }
+.kcount b { color: var(--text); font-variant-numeric: tabular-nums; }
+.filters { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
 .filters button { font-size: 12px; border: 1px solid var(--border); background: none; color: var(--muted); border-radius: 99px; padding: 2px 10px; }
 .filters button.on { color: var(--text); border-color: currentColor; }
-.filters button[data-k] .dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 5px; }
-.events { flex: 1; overflow-y: auto; padding: 10px 12px 20px; }
-.node-label { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 14px 6px 6px; }
+.dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 5px; }
+.events { flex: 1; overflow-y: auto; overflow-x: hidden; padding: 8px 12px 20px; }
+.grp { margin: 8px 0 4px; }
+.ghead { display: flex; align-items: center; gap: 8px; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 10px 4px 6px; }
+.ghead b { color: var(--text); font-size: 11px; background: var(--surface-2); border-radius: 99px; padding: 0 7px; font-variant-numeric: tabular-nums; letter-spacing: 0; }
+.ghead .more { margin-left: auto; text-transform: none; letter-spacing: 0; font-size: 11.5px; background: none; border: 0; color: var(--k-evidence); padding: 0; }
 .ev { border-left: 3px solid var(--k); padding: 6px 10px; margin: 0 0 6px; border-radius: 0 8px 8px 0; background: var(--surface-2); font-size: 12.5px; transition: box-shadow .3s; }
+.ev.new { animation: slidein .35s; }
+@keyframes slidein { from { opacity: 0; transform: translateX(14px); } }
 .ev.flash { box-shadow: 0 0 0 2px var(--k); }
 .ev .row { display: flex; gap: 6px; align-items: center; }
 .ev .kind { color: var(--k); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; }
@@ -134,19 +252,21 @@ header .spacer { flex: 1; }
 .ev .body { margin-top: 2px; word-break: break-word; }
 .ev .cites { margin-top: 4px; display: flex; gap: 4px; flex-wrap: wrap; }
 .ev a { color: var(--k-evidence); }
+.hidden-n { font-size: 11.5px; color: var(--muted); padding: 0 6px 4px; }
 .k-evidence { --k: var(--k-evidence); } .k-inference { --k: var(--k-inference); }
 .k-action { --k: var(--k-action); } .k-approval { --k: var(--k-approval); }
 .audit-toggle { display: none; }
 
 @media (max-width: 900px) {
   .app { grid-template-columns: 1fr; }
-  .audit { position: fixed; inset: auto 0 0 0; height: 70vh; transform: translateY(100%); transition: transform .25s;
-           border-left: 0; border-top: 1px solid var(--border); border-radius: 16px 16px 0 0; box-shadow: var(--shadow); z-index: 5; }
+  .audit { position: fixed; inset: auto 0 0 0; height: 70vh; transform: translateY(100%); transition: transform .25s; border-left: 0; border-top: 1px solid var(--border); border-radius: 16px 16px 0 0; box-shadow: var(--shadow); z-index: 5; }
   .audit.open { transform: none; }
   .audit-toggle { display: inline-block; }
   header, .thread, .composer { padding-left: 16px; padding-right: 16px; }
   header .sub { display: none; }
   .msg { max-width: 92%; }
+  .stage { height: 320px; }
+  .frow { grid-template-columns: 110px 1fr 44px; }
 }
 </style>
 </head>
@@ -166,9 +286,9 @@ header .spacer { flex: 1; }
         <h2>What are you hungry for?</h2>
         <p>Tell me the dish, budget and who's eating. I'll compare both apps and show my evidence.</p>
         <div class="suggest">
-          <button>Spicy noodles for 2 under $40, no pork</button>
-          <button>Dan dan noodles, fastest delivery</button>
-          <button>Something spicy under $20 in 35 min</button>
+          <button>Find me spicy Chinese food for two under $40. I prefer noodles. I do not like mushrooms. I want the cheapest option that arrives within 40 minutes.</button>
+          <button>Dumplings for one, under $20</button>
+          <button>Soup for two, under $50, no peanuts</button>
         </div>
       </div>
     </div></div>
@@ -182,8 +302,9 @@ header .spacer { flex: 1; }
 
   <aside class="audit" id="audit">
     <div class="audit-head">
-      <h2>Audit trail</h2>
-      <div class="fine" id="runInfo">Every fact, conclusion, action and approval for this run.</div>
+      <h2>Audit trail <span class="livedot" id="liveDot">idle</span></h2>
+      <div class="fine" id="runInfo">Every fact, conclusion, action and approval, as it happens.</div>
+      <div class="kcount" id="kcount"></div>
       <div class="filters" id="filters">
         <button class="on" data-k="all">All</button>
         <button class="on" data-k="evidence"><span class="dot" style="background:var(--k-evidence)"></span>Evidence</button>
@@ -192,7 +313,7 @@ header .spacer { flex: 1; }
         <button class="on" data-k="approval"><span class="dot" style="background:var(--k-approval)"></span>Approval</button>
       </div>
     </div>
-    <div class="events" id="events"><p class="fine" style="padding:8px">Nothing yet. Send a request to start a run.</p></div>
+    <div class="events" id="events"><p class="fine" style="padding:8px">Nothing yet. Send a request and watch each step land here live.</p></div>
   </aside>
 </div>
 
@@ -201,8 +322,9 @@ header .spacer { flex: 1; }
 const API = new URLSearchParams(location.search).get("api") || "";
 const USER_ID = "demo";
 const PLAT = { ubereats: "Uber Eats", doordash: "DoorDash" };
+const PLAT_SHORT = { ubereats: "UE", doordash: "DD" };
 
-let threadId = null, last = null, busy = false;
+let threadId = "t_" + Math.random().toString(36).slice(2, 12), last = null, busy = false;
 const shown = { evidence: true, inference: true, action: true, approval: true };
 
 const $ = (s, el = document) => el.querySelector(s);
@@ -210,73 +332,616 @@ const feed = $("#feed"), threadEl = $("#thread");
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const money = n => n == null ? "–" : "$" + Number(n).toFixed(2);
 const short = id => (id || "").slice(-6);
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const rkey = s => String(s || "").toLowerCase().replace(/[^a-z]/g, "");
+const isDark = () => getComputedStyle(document.body).backgroundColor.match(/\d+/g).slice(0, 3).reduce((a, b) => a + +b, 0) < 300;
 
 function el(html) { const t = document.createElement("template"); t.innerHTML = html.trim(); return t.content.firstElementChild; }
 function push(node) { $("#empty")?.remove(); feed.appendChild(node); threadEl.scrollTop = threadEl.scrollHeight; return node; }
 function say(role, text) { return push(el(`<div class="msg ${role}">${esc(text)}</div>`)); }
-function cites(ids, max = 6) {
-  const all = (ids || []).filter(Boolean);
-  const chips = all.slice(0, max).map(id => `<button class="cite mono" data-ev="${esc(id)}" title="Show evidence ${esc(id)}">${esc(short(id))}</button>`).join("");
-  return chips + (all.length > max ? `<span class="fine"> +${all.length - max} more</span>` : "");   // real menus: 100+ removed offers
+
+// ================= facts gathered from the audit stream (per run)
+let facts = null;
+function newFacts(runId) {
+  return { runId, events: {}, price: {}, matches: {}, counts: {}, totals: { ubereats: 0, doordash: 0 }, memoryEvent: null };
+}
+function learn(e) {
+  if (!facts || facts.runId !== e.run_id) facts = newFacts(e.run_id);
+  facts.events[e.event_id] = e;
+  const p = e.payload || {};
+  if (e.node === "normalize" && p.item) {
+    facts.price[p.platform + "|" + p.item] = p;
+    const k = rkey(p.restaurant).replace(/^zyrestaurant$/, "zyrestaurant");
+    facts.counts[k] = facts.counts[k] || { ubereats: 0, doordash: 0, name: p.restaurant };
+    facts.counts[k][p.platform] = (facts.counts[k][p.platform] || 0) + 1;
+  }
+  if (p.what === "same dish on both platforms" && p.match_id) facts.matches[p.match_id] = p;
+  if (e.node.startsWith("scrape_") && p.offers != null) facts.totals[p.platform] = p.offers;
+  if (p.tool === "build_cart" && p.platform) facts.platform = p.platform;
 }
 
-async function call(body) {
+// What an evidence id points at, in words (instead of a hash).
+function citeLabel(id) {
+  const e = facts?.events[id]; if (!e) return short(id);
+  const p = e.payload || {};
+  if (e.node === "normalize") return `${PLAT_SHORT[p.platform] || ""} price${p.scraped_at ? " · " + new Date(p.scraped_at).toISOString().slice(11, 16) : ""}`;
+  if (p.request_text) return "your request";
+  if (e.node === "load_memory") return "your memory";
+  if (p.constraints) return "parsed request";
+  return e.node.replace(/_/g, " ");
+}
+function cites(ids, max = 4) {
+  const all = [...new Set((ids || []).filter(Boolean))];
+  const chips = all.slice(0, max).map(id => `<button class="cite" data-ev="${esc(id)}" title="Show evidence ${esc(id)}">${esc(citeLabel(id))}</button>`).join("");
+  return chips + (all.length > max ? `<span class="fine"> +${all.length - max}</span>` : "");
+}
+
+// ================= audit summaries (real agent payloads first, mock shapes after)
+const list = (xs, n = 3) => (xs || []).slice(0, n).map(esc).join(", ") + ((xs || []).length > n ? ` +${xs.length - n} more` : "");
+function summary(e) {
+  const p = e.payload || {};
+  if (p.what === "memory read from the store") return `Read memory: ${(p.order_ids || []).length} past orders, ${(p.hard_rules || []).length} hard rules${p.hard_rules?.length ? ` (${list(p.hard_rules)})` : ""}`;
+  if (p.request_text) return `Request: “${esc(p.request_text)}”`;
+  if (p.constraints) { const c = p.constraints; return `Parsed: ${[c.dish_query && `dish=${esc(c.dish_query)}`, c.cuisine && `cuisine=${esc(c.cuisine)}`, c.people && `people=${c.people}`, c.budget_total && `budget=${money(c.budget_total)}`, c.max_eta_min && `max=${c.max_eta_min} min`, c.hard_excludes?.length && `no ${list(c.hard_excludes)}`].filter(Boolean).join(", ")}`; }
+  if (e.kind === "evidence" && p.platform && p.offers != null && !p.error) return `Searched ${esc(PLAT[p.platform] || p.platform)} (${esc(p.mode)}): <b>${p.offers}</b> dishes`;
+  if (e.kind === "evidence" && p.item) return `<b>${esc(p.item)}</b> at ${esc(p.restaurant)} on ${esc(PLAT[p.platform] || p.platform)}: ${money(p.price)}${p.fees_known === false ? "" : ` + ${money(p.fees)} fees`}`;
+  if (p.what === "same dish on both platforms") return `Same dish: ${esc(p.ubereats_item)} ≈ ${esc(p.doordash_item)} at ${esc(p.restaurant)} (${Math.round(p.confidence * 100)}%)`;
+  if (p.what === "removed options that break a rule") { const why = reasonsOf(p.removed); return `Kept <b>${p.kept}</b>, removed ${(p.removed || []).length}: ${Object.entries(why).map(([r, n]) => `${n} ${esc(r)}`).join(", ")}`; }
+  if (p.what === "ranked options") return `Ranked by ${esc(p.ranker)}: ${(p.top || []).slice(0, 3).map(t => `${esc(t.item)} ${money(t.est_total)}`).join(" › ")}`;
+  if (p.summary && p.writer) return `Explained: ${esc(p.summary)}`;
+  if (p.decision === "select") return `User chose option ${esc(p.text)}`;
+  if (p.decision === "reject_one") return `User turned down one option: “${esc(p.text)}”`;
+  if (p.decision === "none_of_these") return `User: “${esc(p.text)}”`;
+  if (p.route && p.reader) return `Read feedback: ${esc(p.route)}${p.reason ? ` — “${esc(p.reason)}”` : ""}${p.new_hard_rules?.length ? `; new rule: no ${list(p.new_hard_rules)}` : ""}`;
+  if (p.tool === "build_cart") return `Built cart on ${esc(PLAT[p.platform] || p.platform)}: ${(p.items || []).map(l => `${l.qty} × ${esc(l.item)}`).join(", ")}`;
+  if (p.tool === "quote") return `Live quote: <b>${money(p.total)}</b> (${money(p.subtotal)} + ${money(p.fees)} fees)`;
+  if (p.quote_ok != null) return `Quote check ${p.quote_ok ? "passed" : "<b>failed</b>"}: estimate ${money(p.estimate)}, quoted ${money(p.quoted_total)}`;
+  if (e.kind === "approval" && p.approved != null) return `User ${p.approved ? "<b>approved</b>" : "declined"} ${money(p.total)}`;
+  if (p.tool === "submit") return `Handed off to checkout: <a href="${esc(p.handoff_url)}" target="_blank" rel="noopener">link</a>`;
+  if (p.what) return `${esc(p.what)}${p.note ? ": " + esc(p.note) : ""}${p.error ? ` (${esc(p.error)})` : ""}`;
+  if (p.tool) return `Called <span class="mono">${esc(p.tool)}</span>`;
+  return `<span class="mono">${esc(JSON.stringify(p)).slice(0, 220)}</span>`;
+}
+function reasonsOf(removed) {
+  const why = {};
+  (removed || []).forEach(x => { const r = x.reason.split(" (")[0].split(":")[0]; why[r] = (why[r] || 0) + 1; });
+  return why;
+}
+
+// ================= live audit panel: grouped by step, newest few shown, big steps collapsed
+const NODE_NAME = { load_memory: "Recall memory", parse_request: "Understand request", scrape_ubereats: "Search Uber Eats", scrape_doordash: "Search DoorDash",
+  normalize: "Record every price", match_offers: "Match same dish", filter_rank: "Filter & rank", explain: "Explain", build_cart: "Build cart",
+  verify_quote: "Verify quote", approve_purchase: "Ask approval", submit_or_handoff: "Hand off", persist_learn: "Save to memory", distill_preferences: "Learn preferences", select_option: "Your choice", read_feedback: "Read your feedback" };
+const PEEK = 3;
+const Audit = {
+  runId: null, groups: [], count: { evidence: 0, inference: 0, action: 0, approval: 0 }, total: 0,
+  reset(runId) {
+    this.runId = runId; this.groups = []; this.total = 0; Object.keys(this.count).forEach(k => this.count[k] = 0);
+    $("#events").innerHTML = ""; this.head();
+  },
+  head() {
+    $("#runInfo").innerHTML = this.runId ? `Run <span class="mono">${esc(this.runId)}</span> · <b>${this.total}</b> events` : "";
+    $("#kcount").innerHTML = Object.entries(this.count).map(([k, n]) => `<span><span class="dot" style="background:var(--k-${k})"></span><b>${n}</b> ${k}</span>`).join("");
+  },
+  add(e) {
+    if (e.run_id !== this.runId) this.reset(e.run_id);
+    this.total++; this.count[e.kind] = (this.count[e.kind] || 0) + 1;
+    let g = this.groups[this.groups.length - 1];
+    if (!g || g.node !== e.node) {
+      g = { node: e.node, events: [], open: false, dom: el(`<div class="grp"><div class="ghead"><span></span><b>0</b><button class="more"></button></div><div class="gbody"></div></div>`) };
+      g.dom.querySelector(".more").onclick = () => { g.open = !g.open; this.draw(g, false); };
+      this.groups.push(g); $("#events").appendChild(g.dom);
+    }
+    g.events.push(e);
+    this.draw(g, true);
+    this.head();
+    const box = $("#events"); box.scrollTop = box.scrollHeight;
+  },
+  row(e, isNew) {
+    const t = new Date(e.ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+    return `<div class="ev k-${esc(e.kind)}${isNew ? " new" : ""}" id="ev-${esc(e.event_id)}">
+      <div class="row"><span class="kind">${esc(e.kind)}</span><span class="fine">${t}</span><span class="id mono">${esc(short(e.event_id))}</span></div>
+      <div class="body">${summary(e)}</div>
+      ${(e.evidence_ids?.length || e.source_url) ? `<div class="cites">${cites(e.evidence_ids, 5)}${e.source_url ? `<a class="fine" href="${esc(e.source_url)}" target="_blank" rel="noopener">source ↗</a>` : ""}</div>` : ""}
+    </div>`;
+  },
+  draw(g, isNew) {
+    const vis = g.events.filter(e => shown[e.kind]);
+    g.dom.querySelector(".ghead span").textContent = NODE_NAME[g.node] || g.node.replace(/_/g, " ");
+    g.dom.querySelector(".ghead b").textContent = g.events.length;
+    const more = g.dom.querySelector(".more");
+    more.style.display = vis.length > PEEK ? "" : "none";
+    more.textContent = g.open ? "show less" : `show all ${vis.length}`;
+    const pick = g.open ? vis : vis.slice(-PEEK);
+    const hidden = vis.length - pick.length;
+    g.dom.querySelector(".gbody").innerHTML = (hidden ? `<div class="hidden-n">… ${hidden} earlier ${hidden === 1 ? "event" : "events"} in this step</div>` : "")
+      + pick.map((e, i) => this.row(e, isNew && i === pick.length - 1)).join("");
+  },
+  redraw() { this.groups.forEach(g => this.draw(g, false)); },
+  reveal(id) {
+    let node = document.getElementById("ev-" + id);
+    if (!node) {
+      const g = this.groups.find(g => g.events.some(e => e.event_id === id));
+      if (!g) return null;
+      const ev = g.events.find(e => e.event_id === id);
+      if (!shown[ev.kind]) { shown[ev.kind] = true; syncFilters(); }
+      g.open = true; this.draw(g, false); node = document.getElementById("ev-" + id);
+    }
+    return node;
+  },
+};
+function setLive(on) { const d = $("#liveDot"); d.classList.toggle("on", on); d.textContent = on ? "LIVE" : "idle"; }
+
+// ================= stage visuals
+const STAGE_OF = { load_memory: "memory", parse_request: "parse", scrape_ubereats: "search", scrape_doordash: "search", normalize: "search",
+  match_offers: "match", explain: "rank", build_cart: "verify", verify_quote: "verify", approve_purchase: "handoff",
+  submit_or_handoff: "handoff", persist_learn: "learn", distill_preferences: "learn" };
+const STAGE_TITLE = { memory: "Recall memory", parse: "Understand", search: "Search both apps", match: "Match dishes", filter: "Filter", rank: "Rank",
+  verify: "Verify cart", handoff: "Approve & hand off", learn: "Learn" };
+function stageOf(e) {
+  if (e.node === "filter_rank") return e.payload?.what === "ranked options" || e.payload?.what?.startsWith("reranker") ? "rank" : "filter";
+  return STAGE_OF[e.node] || "other:" + e.node;
+}
+
+const Stages = {
+  memory: {
+    init(p) {
+      p.innerHTML = `<div class="cap"><h4>Recalling what you like</h4><p>Past orders and rules from <b>SingleStore</b>, learned preferences from <b>Cognee</b></p></div><svg viewBox="0 0 900 390" width="100%" height="100%"></svg>`;
+      this.svg = p.querySelector("svg"); this.drawn = false;
+    },
+    async event(e) { facts.memoryEvent = e.payload; await this.draw(e.payload); },
+    async draw(ev) {
+      if (this.drawn) return; this.drawn = true;
+      const mem = await memoryP;
+      const cx = 450, cy = 215, svg = this.svg;
+      const orders = (mem?.orders || []).slice(0, 6);
+      const prefs = (mem?.preferences || []).filter(p => p.kind !== "hard").slice(0, 2);
+      const rules = [...new Set([...(ev.hard_rules || []), ...(mem?.preferences || []).filter(p => p.kind === "hard").map(p => p.term || p.text)]
+        .map(r => String(r).toLowerCase().replace(/^(dislikes|no)\s+/, "").replace(/s$/, "")))].slice(0, 2);
+      const rej = (mem?.interactions || []).filter(i => i.reason && i.rejected_restaurants?.length).slice(0, 1);
+      let delay = 0; const d = () => (delay += 0.12).toFixed(2) + "s";
+      const pos = {}; let edges = "", nodes = "";
+      // past orders: a column on the left
+      orders.forEach((o, i) => { pos[o.order_id] = [150, 96 + i * 52]; });
+      orders.forEach(o => {
+        const [x, y] = pos[o.order_id];
+        edges += `<path class="mg-edge" style="animation-delay:${d()}" d="M${x + 85},${y} C${x + 200},${y} ${cx - 120},${cy} ${cx - 34},${cy}" stroke="var(--border)" stroke-width="1.5"/>`;
+        const item = (o.items || [])[0] || o.restaurant || "";
+        const fresh = o.run_id && o.run_id === facts?.runId;
+        nodes += `<g class="mg-node" style="animation-delay:${d()}"><rect x="${x - 85}" y="${y - 21}" width="170" height="42" rx="10" fill="${fresh ? "color-mix(in srgb, var(--accent) 14%, var(--surface))" : "var(--surface)"}" stroke="${fresh ? "var(--accent)" : o.platform === "doordash" ? "var(--dd)" : "var(--ue)"}" stroke-width="${fresh ? 3 : 1.5}"/>${fresh ? `<text x="${x - 92}" y="${y + 4}" text-anchor="end" font-size="11" font-weight="700" fill="var(--accent)">NEW →</text>` : ""}
+          <text x="${x}" y="${y - 3}" text-anchor="middle" font-size="12" font-weight="600" fill="var(--text)">${esc(item.length > 25 ? item.slice(0, 24) + "…" : item)}</text>
+          <text x="${x}" y="${y + 13}" text-anchor="middle" font-size="10.5" fill="var(--muted)">${esc(o.order_id)} · ${esc(PLAT_SHORT[o.platform] || "")} ${o.rating ? "· " + "★".repeat(o.rating) : ""}</text></g>`;
+      });
+      // right column: learned preferences (wired to the orders they came from), hard rules, a past rejection
+      const RX = 745;
+      prefs.forEach((p, i) => {
+        const y = 100 + i * 78; pos[p.pref_id] = [RX, y];
+        (p.episode_ids || []).forEach(id => { if (pos[id]) {
+          const [ox, oy] = pos[id];
+          edges += `<path class="mg-edge" style="animation-delay:${d()}" d="M${ox + 85},${oy} C${cx - 40},${oy} ${cx + 80},${y} ${RX - 100},${y}" stroke="var(--mem)" stroke-width="1.7" opacity=".75"/>`;
+        } });
+        nodes += `<g class="mg-node" style="animation-delay:${d()}"><rect x="${RX - 100}" y="${y - 25}" width="200" height="50" rx="25" fill="color-mix(in srgb, var(--mem) 14%, var(--surface))" stroke="var(--mem)" stroke-width="1.5"/>
+          <text x="${RX}" y="${y - 3}" text-anchor="middle" font-size="12.5" font-weight="700" fill="var(--mem)">${esc(p.text)}</text>
+          <text x="${RX}" y="${y + 13}" text-anchor="middle" font-size="10.5" fill="var(--muted)">learned from ${(p.episode_ids || []).length} orders · ${Math.round((p.confidence || 0) * 100)}%</text></g>`;
+      });
+      rules.forEach((r, i) => {
+        const y = 100 + prefs.length * 78 + i * 46;
+        edges += `<path class="mg-edge" style="animation-delay:${d()}" d="M${cx + 34},${cy} C${cx + 120},${cy} ${RX - 160},${y} ${RX - 90},${y}" stroke="var(--rule)" stroke-width="1.5" stroke-dasharray="4 4"/>`;
+        nodes += `<g class="mg-node" style="animation-delay:${d()}"><rect x="${RX - 90}" y="${y - 16}" width="180" height="32" rx="8" fill="color-mix(in srgb, var(--rule) 12%, var(--surface))" stroke="var(--rule)" stroke-width="1.5"/>
+          <text x="${RX}" y="${y + 5}" text-anchor="middle" font-size="12" font-weight="700" fill="var(--rule)">⛔ NEVER ${esc(r.toUpperCase())}</text></g>`;
+      });
+      rej.forEach(r => {
+        const y = 100 + prefs.length * 78 + rules.length * 46 + 4;
+        edges += `<path class="mg-edge" style="animation-delay:${d()}" d="M${cx + 20},${cy + 26} C${cx + 80},${y} ${RX - 160},${y} ${RX - 100},${y}" stroke="var(--muted)" stroke-width="1.2" stroke-dasharray="3 4"/>`;
+        nodes += `<g class="mg-node" style="animation-delay:${d()}"><rect x="${RX - 100}" y="${y - 16}" width="200" height="32" rx="8" fill="var(--surface-2)" stroke="var(--border)"/>
+          <text x="${RX}" y="${y + 5}" text-anchor="middle" font-size="11.5" fill="var(--muted)">👎 ${esc(r.rejected_restaurants.join(", "))}: “${esc(r.reason)}”</text></g>`;
+      });
+      const you = `<g class="mg-node"><circle cx="${cx}" cy="${cy}" r="34" fill="var(--accent)"/><text x="${cx}" y="${cy + 5}" text-anchor="middle" font-size="14" font-weight="700" fill="var(--accent-ink)">You</text></g>`;
+      const empty = !orders.length && !prefs.length ? `<text x="${cx}" y="${cy + 70}" text-anchor="middle" fill="var(--muted)" font-size="13">${(ev.order_ids || []).length} past orders · ${(ev.hard_rules || []).length} hard rules</text>` : "";
+      svg.innerHTML = edges + you + nodes + empty;
+    },
+  },
+
+  parse: {
+    init(p) { p.innerHTML = `<div class="cap"><h4>Understanding your request</h4><p>SIE · Qwen3.8 27B turns words into hard constraints</p></div><div class="parse"><div class="req"></div><div class="chips"></div></div>`; this.p = p; },
+    async event(e) {
+      const pl = e.payload || {};
+      if (pl.request_text) { this.text = pl.request_text; $(".req", this.p).textContent = pl.request_text; return; }
+      if (!pl.constraints) return;
+      const term = x => rkey(String(x).toLowerCase().replace(/^(dislikes|no|never)\s+/, "")).replace(/s$/, "");
+      const c = pl.constraints, fromMem = new Set((facts.memoryEvent?.hard_rules || []).map(term)), fresh = new Set((pl.new_hard_rules || []).map(term));
+      const chips = [];
+      if (c.dish_query) chips.push(["dish", c.dish_query, /noodle|spicy|dumpling|soup|tofu|chicken/i]);
+      if (c.cuisine) chips.push(["cuisine", c.cuisine, new RegExp(c.cuisine, "i")]);
+      if (c.people) chips.push(["people", c.people, /for (two|one|three|four|\d+)|\b\d+ people/i]);
+      if (c.budget_total) chips.push(["budget", money(c.budget_total), /under \$?\d+|\$\d+/i]);
+      if (c.max_eta_min) chips.push(["max time", c.max_eta_min + " min", /\d+ ?min(ute)?s?/i]);
+      (c.soft_prefs || []).forEach(x => chips.push(["prefers", x, new RegExp(x.replace(/s$/, ""), "i")]));
+      const rules = {}; (c.hard_excludes || []).forEach(x => { const t = term(x); if (!rules[t]) rules[t] = x.replace(/^(dislikes|no|never)\s+/i, ""); });
+      Object.entries(rules).forEach(([t, x]) => chips.push(["never", x, new RegExp(t, "i"), "rule", fromMem.has(t) ? (fresh.has(t) ? "you said it · also in memory" : "from memory") : "new rule → saved"]));
+      const req = $(".req", this.p), box = $(".chips", this.p);
+      for (const [k, v, re, cls, note] of chips) {
+        const ch = el(`<div class="cchip ${cls || ""}"><small>${esc(k)}</small><b>${esc(v)}</b>${note ? `<em>${esc(note)}</em>` : ""}</div>`);
+        box.appendChild(ch); await sleep(30); ch.classList.add("in");
+        if (re && this.text) { const html = req.innerHTML; const m = req.textContent.match(re);
+          if (m && !html.includes(`<mark>${esc(m[0])}</mark>`)) req.innerHTML = html.replace(esc(m[0]), `<mark>${esc(m[0])}</mark>`); }
+        await sleep(260);
+      }
+    },
+  },
+
+  search: {
+    init(p) {
+      p.innerHTML = `<div class="mapbox"></div><div class="cap"><h4>Searching Uber Eats and DoorDash</h4><p>Apify Actors fetch every menu · each price is saved as evidence</p></div>
+        <div class="counter"><div class="ue"><b>0</b><small>Uber Eats dishes</small></div><div class="dd"><b>0</b><small>DoorDash dishes</small></div></div>`;
+      this.p = p; this.platforms = new Set(); this.map = null; this.labels = {};
+      this.ready = initMap(p.querySelector(".mapbox")).then(m => { this.map = m; this.render(); }).catch(() => { this.map = null; this.svgFallback(); });
+    },
+    event(e) {
+      const pl = e.payload || {};
+      if (e.node.startsWith("scrape_") && pl.platform) this.platforms.add(pl.platform);
+      if (e.node === "normalize" && pl.platform) this.platforms.add(pl.platform);
+      this.dirty = true; if (!this.raf) this.raf = requestAnimationFrame(() => { this.raf = 0; this.render(); });
+    },
+    render() {
+      const n = { ubereats: 0, doordash: 0 };
+      Object.values(facts?.counts || {}).forEach(c => { n.ubereats += c.ubereats || 0; n.doordash += c.doordash || 0; });
+      $(".counter .ue b", this.p).textContent = n.ubereats; $(".counter .dd b", this.p).textContent = n.doordash;
+      if (this.map) updateMap(this.map, this, [...this.platforms]); else if (this.svg) this.svgFallback();
+    },
+    svgFallback() {
+      const box = this.p.querySelector(".mapbox");
+      if (!this.svg) { box.innerHTML = `<svg viewBox="0 0 900 360" width="100%" height="100%"></svg>`; this.svg = box.firstChild; }
+      const proj = ([lng, lat]) => [80 + (lng + 122.48) / 0.08 * 740, 330 - (lat - 37.77) / 0.03 * 280];
+      const [yx, yy] = proj(HOME.pos); let s = "";
+      RESTAURANTS.forEach(r => {
+        const [x, y] = proj(r.pos), c = facts?.counts[r.key] || {};
+        [...this.platforms].forEach((pl, i) => {
+          const col = pl === "ubereats" ? "var(--ue)" : "var(--dd)";
+          s += `<path d="M${yx},${yy} Q${(yx + x) / 2},${Math.min(yy, y) - 120 - i * 30} ${x},${y}" stroke="${col}" stroke-width="2.5" fill="none" marker-end="url(#ah${i})"/>`;
+          const h = Math.min(160, (c[pl] || 0) * 1.1);
+          s += `<rect x="${x - 10 + i * 11}" y="${y - h}" width="9" height="${h}" fill="${col}"/>`;
+        });
+        s += `<text x="${x}" y="${y + 16}" text-anchor="middle" font-size="11" fill="var(--text)">${esc(r.name)}</text>`;
+      });
+      this.svg.innerHTML = `<defs><marker id="ah0" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0L10,5L0,10z" fill="var(--ue)"/></marker><marker id="ah1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0L10,5L0,10z" fill="var(--dd)"/></marker></defs>`
+        + s + `<circle cx="${yx}" cy="${yy}" r="9" fill="var(--accent)"/><text x="${yx}" y="${yy + 24}" text-anchor="middle" font-size="12" font-weight="700" fill="var(--accent)">You</text>`;
+    },
+  },
+
+  match: {
+    init(p) {
+      p.innerHTML = `<div class="cap"><h4>Is it the same dish?</h4><p>SIE R3 embeddings + price ratio + main ingredient pair dishes across apps</p></div>
+        <svg viewBox="0 0 900 360" width="100%" height="100%"></svg><div class="ticker"></div>`;
+      this.svg = p.querySelector("svg"); this.tk = p.querySelector(".ticker"); this.n = 0;
+      const rows = RESTAURANTS.map((r, i) => ({ ...r, y: 128 + i * 38, n: 0 }));
+      this.rows = Object.fromEntries(rows.map(r => [r.key, r]));
+      this.svg.innerHTML = `<text x="300" y="100" text-anchor="middle" font-size="12" font-weight="700" fill="var(--ue)">Uber Eats menu</text>
+        <text x="640" y="100" text-anchor="middle" font-size="12" font-weight="700" fill="var(--dd)">DoorDash menu</text>
+        <text x="860" y="62" text-anchor="end" font-size="30" font-weight="700" fill="var(--k-inference)" class="mc">0</text>
+        <text x="860" y="78" text-anchor="end" font-size="11" fill="var(--muted)">dishes on both apps</text>`
+        + rows.map(r => `<text x="190" y="${r.y + 4}" text-anchor="end" font-size="11.5" fill="var(--text)">${esc(r.name)}</text>
+          <rect x="210" y="${r.y - 6}" width="180" height="12" rx="6" fill="var(--ue)" opacity=".22"/>
+          <rect x="550" y="${r.y - 6}" width="180" height="12" rx="6" fill="var(--dd)" opacity=".22"/>
+          <text x="860" y="${r.y + 4}" text-anchor="end" font-size="12" font-weight="700" fill="var(--k-inference)" class="rc-${r.key}"></text>`).join("")
+        + `<g class="links"></g>`;
+    },
+    event(e) {
+      const pl = e.payload || {}; if (pl.what !== "same dish on both platforms") return;
+      this.n++; this.svg.querySelector(".mc").textContent = this.n;
+      const r = this.rows[rkey(pl.restaurant)] || Object.values(this.rows)[this.n % 5];
+      r.n++; this.svg.querySelector(".rc-" + r.key).textContent = r.n + " pairs";
+      const x1 = 215 + Math.random() * 170, x2 = 555 + Math.random() * 170, y = r.y;
+      const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+      path.setAttribute("d", `M${x1},${y} C${x1 + 120},${y - 16} ${x2 - 120},${y + 16} ${x2},${y}`);
+      path.setAttribute("stroke", "var(--k-inference)"); path.setAttribute("fill", "none");
+      path.setAttribute("stroke-width", 1.1); path.setAttribute("opacity", (pl.confidence * 0.35).toFixed(2)); path.setAttribute("class", "mg-edge");
+      this.svg.querySelector(".links").appendChild(path);
+      const t = el(`<div class="tick"><span class="bar"><i style="width:${Math.round(pl.confidence * 100)}%"></i></span><span><b>${Math.round(pl.confidence * 100)}%</b> ${esc(pl.ubereats_item)} ≈ ${esc(pl.doordash_item)} · ${esc(pl.restaurant)}</span></div>`);
+      this.tk.appendChild(t); while (this.tk.children.length > 4) this.tk.firstChild.remove();
+    },
+  },
+
+  filter: {
+    init(p) { p.innerHTML = `<div class="cap"><h4>Removing what breaks your rules</h4><p>Hard rules are filtered out before anything is ranked</p></div><div class="funnel"></div>`; this.p = p; },
+    async event(e) {
+      const pl = e.payload || {}; if (pl.what !== "removed options that break a rule") return;
+      const why = reasonsOf(pl.removed), total = (pl.removed || []).length + pl.kept;
+      const label = { "hard rule": "⛔ breaks a hard rule", "not what was asked for": "not what you asked for", "over budget": "over budget", "side, drink or add-on": "side, drink or add-on",
+        "rejected by the user": "you turned it down", "too slow": "too slow" };
+      const rows = [["all", `${total} dishes found`, total]]
+        .concat(Object.entries(why).sort((a, b) => b[1] - a[1]).map(([r, n]) => ["cut", label[r] || r, n]))
+        .concat([["keep", `${pl.kept} pass every rule`, pl.kept], ["top", "top 3 shown to you", Math.min(3, pl.kept)]]);
+      const box = $(".funnel", this.p);
+      let rem = total;   // waterfall: each cut bites off the end of what is left
+      for (const [cls, txt, n] of rows) {
+        const r = el(`<div class="frow ${cls}"><span>${esc(txt)}</span><div class="track"><div class="fill"></div></div><span class="num">${cls === "cut" ? "−" : ""}${n}</span></div>`);
+        const f = r.querySelector(".fill");
+        if (cls === "cut") { rem -= n; f.style.left = (rem / total * 100) + "%"; }
+        box.appendChild(r); await sleep(40); f.style.width = Math.max(1.2, n / total * 100) + "%"; await sleep(380);
+      }
+    },
+  },
+
+  rank: {
+    init(p) { p.innerHTML = `<div class="cap"><h4>Ranking what's left</h4><p class="rk"></p></div><div class="rank"><div class="rows"></div><div class="why"></div></div>`; this.p = p; },
+    async event(e) {
+      const pl = e.payload || {};
+      if (pl.what === "ranked options") {
+        const viaStatsig = STATSIG ? " · picked by the <b>Statsig</b> flag" : "";
+        $(".rk", this.p).innerHTML = pl.ranker === "reranker" ? `<b>SIE Qwen3 Reranker</b> scores fit to your request + taste${viaStatsig}` : `Price-only ranker: cheapest first${viaStatsig}`;
+        const top = (pl.top || []).slice(0, 3), max = Math.max(...top.map(t => t.score || 0)), min = Math.min(...top.map(t => t.score || 0));
+        const rows = $(".rows", this.p); rows.innerHTML = ""; rows.style.cssText = "display:flex;flex-direction:column;gap:12px";
+        for (const [i, t] of top.entries()) {
+          const pct = pl.ranker === "reranker" ? 55 + 45 * (max > min ? (t.score - min) / (max - min) : 1) : (Math.min(...top.map(x => x.est_total)) / t.est_total) * 100;
+          const r = el(`<div class="rrow"><span class="pos">${i + 1}</span><div><div class="nm">${esc(t.item)} <span class="fine">· ${esc(t.restaurant)} · ${esc(PLAT[t.platform] || "")}</span></div>
+            <div class="sbar"><i></i></div></div><span class="pr">${pl.ranker === "reranker" && t.score != null ? `<small class="fine" style="display:block;font-weight:500">fit ${t.score.toFixed(3)}</small>` : ""}${money(t.est_total)}</span></div>`);
+          rows.appendChild(r); await sleep(40); r.classList.add("in"); r.querySelector(".sbar i").style.width = pct + "%"; await sleep(320);
+        }
+      }
+      if (pl.summary && pl.writer) { const w = $(".why", this.p); w.textContent = "Why #1: " + pl.summary; w.classList.add("in"); }
+    },
+  },
+
+  verify: {
+    init(p) {
+      p.innerHTML = `<div class="cap"><h4>Checking the real cart total</h4><p>A quote more than 10% over the estimate blocks the cart</p></div>
+        <div class="gauge"><div class="gtrack"><div class="gband"></div><div class="gmark est"><span></span></div><div class="gmark q"><span></span></div></div></div><div class="verdict"></div>`;
+      this.p = p;
+    },
+    event(e) {
+      const pl = e.payload || {}; if (pl.quote_ok == null) { if (pl.tool === "quote") this.quote = pl.total; return; }
+      const est = pl.estimate, q = pl.quoted_total ?? this.quote, lo = est * 0.7, hi = est * 1.3, pos = v => Math.max(0, Math.min(100, (v - lo) / (hi - lo) * 100));
+      const band = $(".gband", this.p); band.style.left = pos(est * 0.9) + "%"; band.style.width = (pos(est * 1.1) - pos(est * 0.9)) + "%";
+      const em = $(".gmark.est", this.p), qm = $(".gmark.q", this.p);
+      em.style.left = pos(est) + "%"; em.querySelector("span").textContent = "estimate " + money(est);
+      qm.style.left = "0%"; qm.querySelector("span").textContent = "live quote " + money(q);
+      requestAnimationFrame(() => qm.style.left = pos(q) + "%");
+      const v = $(".verdict", this.p); v.className = "verdict " + (pl.quote_ok ? "ok" : "bad");
+      v.textContent = pl.quote_ok ? `✓ Quote ${money(q)} is within 10% of the ranked ${money(est)}. Safe to ask for approval.` : `✗ Quote ${money(q)} is off the ranked ${money(est)}. Cart blocked.`;
+      setTimeout(() => v.classList.add("in"), 900);
+    },
+  },
+
+  handoff: {
+    init(p) {
+      p.innerHTML = `<div class="cap"><h4>You approve, you pay</h4><p>MealMatch never touches your card</p></div><div class="flow">
+        <div class="fstep" data-s="ask"><div class="ic">✋</div><b>Asked you</b><small>explicit yes needed</small></div><span class="farrow">→</span>
+        <div class="fstep" data-s="ok"><div class="ic">✅</div><b>You approved</b><small class="amt"></small></div><span class="farrow">→</span>
+        <div class="fstep" data-s="link"><div class="ic">🔗</div><b>Checkout link</b><small>deep link to the app</small></div><span class="farrow">→</span>
+        <div class="fstep" data-s="pay"><div class="ic">💳</div><b>You pay there</b><small class="plat-n"></small></div></div>`;
+      this.p = p;
+    },
+    event(e) {
+      const pl = e.payload || {}, on = s => this.p.querySelector(`[data-s="${s}"]`).classList.add("in");
+      on("ask");
+      if (e.kind === "approval" && pl.approved) { on("ok"); $(".amt", this.p).textContent = money(pl.total); }
+      if (pl.tool === "submit" || pl.handoff_url) { on("link"); on("pay"); $(".plat-n", this.p).textContent = "on " + (PLAT[pl.platform || facts.platform] || "the platform"); }
+    },
+  },
+
+  learn: {
+    init(p) {
+      p.innerHTML = `<div class="cap"><h4>Remembering this for next time</h4><p>The order is saved to <b>SingleStore</b> · repeat orders become soft preferences (<b>Cognee</b>)</p></div><svg viewBox="0 0 900 390" width="100%" height="100%"></svg>`;
+      this.svg = p.querySelector("svg"); this.drawn = false; this.timer = null;
+    },
+    event(e) {   // redraw the memory map once the save lands, with the new order highlighted
+      clearTimeout(this.timer);
+      this.timer = setTimeout(() => { memoryP = fetch(`${API}/memory/${USER_ID}`).then(r => r.ok ? r.json() : null).catch(() => null);
+        this.drawn = false; Stages.memory.draw.call(this, facts.memoryEvent || {}); }, 300);
+    },
+  },
+};
+function genericStage(node) {
+  return { init(p) { p.innerHTML = `<div class="cap"><h4>${esc(NODE_NAME[node] || node.replace(/_/g, " "))}</h4></div><div class="glist"></div>`; this.p = p; },
+           event(e) { $(".glist", this.p).appendChild(el(`<div>${summary(e)}</div>`)); } };
+}
+
+// ---------- 3D map (MapLibre + deck.gl arcs and columns)
+const HOME = { name: "You", pos: [-122.4194, 37.7749] };
+const RESTAURANTS = [
+  { key: "zyrestaurant", name: "Z & Y Restaurant", pos: [-122.40584, 37.79622] },
+  { key: "zypekingduck", name: "Z & Y Peking Duck", pos: [-122.40470, 37.79560], cls: "below" },
+  { key: "chinalive", name: "China Live", pos: [-122.40690, 37.79797] },
+  { key: "spices", name: "Spices", pos: [-122.46395, 37.78428] },
+  { key: "sichuanhome", name: "Sichuan Home", pos: [-122.47450, 37.78072] },
+];
+function initMap(container) {
+  return new Promise((resolve, reject) => {
+    if (!window.maplibregl || !window.deck) return reject(new Error("map libraries not loaded"));
+    try {
+      const map = new maplibregl.Map({ container, attributionControl: { compact: true },
+        style: isDark() ? "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json" : "https://basemaps.cartocdn.com/gl/positron-gl-style/style.json",
+        center: [-122.442, 37.787], zoom: 12.4, pitch: 58, bearing: -18, interactive: true });
+      const overlay = new deck.MapboxOverlay({ interleaved: false, layers: [] });
+      map.addControl(overlay);
+      map._overlay = overlay;
+      const t = setTimeout(() => reject(new Error("map timeout")), 8000);
+      map.on("load", () => {
+        clearTimeout(t);
+        const mk = (pos, html, cls) => { const d = el(`<div class="maplabel ${cls || ""}">${html}</div>`); new maplibregl.Marker({ element: d, anchor: "top" }).setLngLat(pos).addTo(map); return d; };
+        mk(HOME.pos, "📍 You", "you");
+        map._labels = Object.fromEntries(RESTAURANTS.map(r => [r.key, mk(r.pos, `${esc(r.name)}<div class="c">waiting…</div>`, r.cls)]));
+        new ResizeObserver(() => map.resize()).observe(container);
+        map.resize();
+        map.easeTo({ bearing: 12, duration: 14000, easing: t => t });
+        resolve(map);
+      });
+      map.on("error", () => {});
+    } catch (err) { reject(err); }
+  });
+}
+function updateMap(map, st, platforms) {
+  const UE = [6, 193, 103], DD = [235, 23, 0];
+  const arcs = [], cols = [];
+  RESTAURANTS.forEach(r => {
+    const c = facts?.counts[r.key] || {};
+    platforms.forEach(pl => {
+      arcs.push({ from: HOME.pos, to: r.pos, color: pl === "ubereats" ? UE : DD, h: pl === "ubereats" ? 0.55 : 0.9 });
+      const off = pl === "ubereats" ? -0.0011 : 0.0011;
+      cols.push({ pos: [r.pos[0] + off, r.pos[1]], n: c[pl] || 0, color: pl === "ubereats" ? UE : DD });
+    });
+    const lab = map._labels?.[r.key];
+    if (lab) lab.querySelector(".c").innerHTML = `<span style="color:var(--ue)">UE ${c.ubereats || 0}</span> · <span style="color:var(--dd)">DD ${c.doordash || 0}</span>`;
+  });
+  map._overlay.setProps({ layers: [
+    new deck.ArcLayer({ id: "arcs", data: arcs, getSourcePosition: d => d.from, getTargetPosition: d => d.to, getSourceColor: d => [...d.color, 90],
+      getTargetColor: d => [...d.color, 255], getWidth: 3.5, getHeight: d => d.h, greatCircle: false }),
+    new deck.ColumnLayer({ id: "cols", data: cols, getPosition: d => d.pos, getElevation: d => d.n * 9, getFillColor: d => [...d.color, 230],
+      radius: 70, diskResolution: 16, extruded: true, transitions: { getElevation: 300 } }),
+    new deck.ScatterplotLayer({ id: "home", data: [HOME], getPosition: d => d.pos, getRadius: 140, getFillColor: [217, 72, 15, 200] }),
+  ] });
+}
+
+// ---------- process card: stepper + one panel per stage
+let memoryP = null;
+class RunCard {
+  constructor() {
+    this.dom = push(el(`<div class="run busy"><div class="steps"></div><div class="stage"><div class="wait">working</div></div></div>`));
+    this.stages = {}; this.order = []; this.active = null; this.pinned = false;
+  }
+  stage(key) {
+    if (this.stages[key]) return this.stages[key];
+    const impl = Object.create(Stages[key] || genericStage(key.replace(/^other:/, "")));
+    const panel = el(`<div class="panel"></div>`); this.dom.querySelector(".stage").appendChild(panel);
+    impl.init(panel);
+    const n = this.order.length + 1;
+    const btn = el(`<button class="step"><span class="n">${n}</span>${esc(STAGE_TITLE[key] || NODE_NAME[key.replace(/^other:/, "")] || key.replace(/^other:/, "").replace(/_/g, " "))}</button>`);
+    btn.onclick = () => { this.pinned = true; this.show(key); };
+    this.dom.querySelector(".steps").appendChild(btn);
+    this.stages[key] = { impl, panel, btn }; this.order.push(key);
+    return this.stages[key];
+  }
+  activate(key) {
+    const s = this.stage(key);
+    if (this.active && this.active !== key) { this.stages[this.active].btn.classList.remove("active"); this.stages[this.active].btn.classList.add("done"); }
+    this.active = key; s.btn.classList.add("active");
+    if (!this.pinned) this.show(key);
+  }
+  show(key) {
+    Object.entries(this.stages).forEach(([k, s]) => { s.panel.classList.toggle("on", k === key); s.btn.classList.toggle("shown", k === key); });
+    const m = this.stages[key]?.impl.map; if (m) setTimeout(() => m.resize(), 30);
+  }
+  finish() {
+    this.dom.classList.remove("busy");
+    if (this.active) { this.stages[this.active].btn.classList.remove("active"); this.stages[this.active].btn.classList.add("done"); }
+  }
+}
+
+// ---------- player: paces the live stream so each step is watchable
+const Q = []; let seen = new Set(), playing = false, waiters = [], card = null, curStage = null;
+function enqueue(evs) {
+  for (const e of evs || []) { if (seen.has(e.event_id)) continue; seen.add(e.event_id); Q.push(e); }
+  if (!playing && Q.length) play();
+}
+async function play() {
+  playing = true;
+  while (Q.length) {
+    const e = Q[0];
+    let n = 0; while (n < Q.length && Q[n].node === e.node && n < 2000) n++;
+    const key = stageOf(e);
+    if (key !== curStage) { if (curStage) await sleep(DWELL[curStage] || 900); curStage = key; card?.activate(key); await sleep(250); }
+    const batch = n > 10 ? Math.max(1, Math.ceil(n / 28)) : 1;
+    for (const ev of Q.splice(0, batch)) {
+      learn(ev); Audit.add(ev);
+      try { await card?.stage(stageOf(ev)).impl.event(ev); } catch (err) { console.warn(err); }
+    }
+    await sleep(batch > 1 || n > 10 ? 50 : 420);
+  }
+  playing = false; waiters.splice(0).forEach(f => f());
+}
+const DWELL = { memory: 2600, parse: 1600, search: 1400, match: 1200, filter: 1500 };
+const drained = () => (!playing && !Q.length) ? Promise.resolve() : new Promise(r => waiters.push(r));
+
+async function poll(state) {
+  let after = 0, run = null;
+  while (state.on) {
+    try {
+      const r = await fetch(`${API}/live/${encodeURIComponent(threadId)}?after=${after}`);
+      if (!r.ok) return;     // the mock agent has no live feed; the reply's audit is played instead
+      const d = await r.json();
+      if (d.run_id && d.run_id !== run) { run = d.run_id; after = 0; continue; }
+      after += d.events.length; enqueue(d.events);
+    } catch { return; }
+    await sleep(300);
+  }
+}
+
+// ================= chat
+async function call(body, isNewRequest) {
   if (busy) return;
-  busy = true; setDisabled(true);
-  const typing = push(el(`<div class="typing">MealMatch is checking both apps</div>`));
+  busy = true; setDisabled(true); setLive(true);
+  card = new RunCard(); curStage = null;
+  if (isNewRequest) memoryP = fetch(`${API}/memory/${USER_ID}`).then(r => r.ok ? r.json() : null).catch(() => null);
+  const state = { on: true }; const poller = poll(state);
   try {
     const res = await fetch(API + "/chat", { method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ thread_id: threadId, user_id: USER_ID, ...body }) });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.detail || `HTTP ${res.status}`);
-    setConn(true);
-    threadId = data.thread_id; last = data;
-    typing.remove();
+    setConn(true); state.on = false; await poller;
+    threadId = data.thread_id || threadId; last = data;
+    enqueue(data.audit || []);
+    await drained(); await sleep(600);
+    card.finish();
     render(data);
   } catch (e) {
-    typing.remove();
+    state.on = false; card?.finish();
     say("error", "Couldn't reach the agent: " + e.message);
     setConn(false);
-  } finally { busy = false; setDisabled(false); }
+  } finally { busy = false; setDisabled(false); setLive(false); }
 }
 
 function setDisabled(d) { document.querySelectorAll(".btn, #input").forEach(b => { if (!b.dataset.done) b.disabled = d; }); }
 function setConn(ok) { const c = $("#conn"); c.className = "pill " + (ok ? "live" : "down"); c.textContent = ok ? "agent online" : "agent offline"; }
 function retire(sel) { feed.querySelectorAll(sel).forEach(b => { b.disabled = true; b.dataset.done = "1"; }); }
 
+// The cards already list the options; keep only the agent's reasoning.
+function tidyReply(text, hasCards) {
+  if (!hasCards) return text;
+  return String(text || "").split("\n").filter(l => !/^\s*\d\.\s/.test(l) && !/^\s*Reply 1/i.test(l)).join("\n").trim();
+}
+
 function render(d) {
   retire(".card .btn");
-  if (d.constraints && d.status === "awaiting_selection") renderConstraints(d.constraints);
-  if (d.reply) say("agent", d.reply);
-  if (d.status === "awaiting_selection" && d.ranked?.length) renderOptions(d.ranked);
+  const cards = d.status === "awaiting_selection" && d.ranked?.length;
+  const reply = prettyReason(tidyReply(d.reply, cards)).replace(/ \(incl\. \$0\.00 fees\)/, "");
+  if (reply) say("agent", reply);
+  if (cards) renderOptions(d.ranked);
   if (d.status === "awaiting_approval" && d.quote) renderCart(d.quote, d.quote_ok, d.cart);
   if (d.status === "done" && d.handoff_url) renderHandoff(d);
-  renderAudit(d.audit || [], d.run_id);
 }
 
-function renderConstraints(c) {
-  const bits = [];
-  if (c.dish_query) bits.push(["dish", c.dish_query]);
-  if (c.people > 1) bits.push(["people", c.people]);
-  if (c.budget_total) bits.push(["budget", money(c.budget_total)]);
-  if (c.max_eta_min) bits.push(["max", c.max_eta_min + " min"]);
-  (c.hard_excludes || []).forEach(x => bits.push(["no", x]));
-  if (!bits.length) return;
-  push(el(`<div class="constraints">${bits.map(([k, v]) => `<span class="pill">${esc(k)} <b>${esc(v)}</b></span>`).join("")}</div>`));
+function otherPlatform(r) {
+  const m = r.match_id && facts?.matches[r.match_id];
+  if (!m) return null;
+  const o = r.offer, other = o.source === "ubereats" ? "doordash" : "ubereats";
+  const p = facts.price[other + "|" + m[other + "_item"]];
+  return p ? { platform: other, price: p.price } : null;
 }
 
+const prettyReason = t => String(t || "").replace(/ on ubereats/g, " on Uber Eats").replace(/ on doordash/g, " on DoorDash").replace(/ \+ \$0\.00 fees/g, "").replace(/ x (\d)/g, " × $1");
 function renderOptions(ranked) {
   const wrap = el(`<div class="options"></div>`);
+  const people = last?.constraints?.people || 1;
   ranked.forEach((r, i) => {
-    const o = r.offer, total = r.total ?? -r.score;  // the reranker's score is not a price
-    const card = el(`<div class="card ${i === 0 ? "best" : ""}">
+    const o = r.offer, total = r.total ?? o.price * people;
+    const alt = otherPlatform(r);
+    const vsRow = (() => {
+      const mine = `<div class="win"><span>${esc(PLAT[o.source])}</span><span>${money(o.price)}</span></div>`;
+      if (!alt) return `<div class="vs">${o.source === "ubereats" ? mine + `<div class="na"><span>DoorDash</span><span>not listed</span></div>` : `<div class="na"><span>Uber Eats</span><span>not listed</span></div>` + mine}</div>`;
+      const a = `<div class="${alt.price < o.price ? "win" : ""}"><span>${esc(PLAT[alt.platform])}</span><span>${money(alt.price)}</span></div>`;
+      return `<div class="vs">${o.source === "ubereats" ? mine + a : a + mine}</div>`;
+    })();
+    const card = el(`<div class="card ${i === 0 ? "best" : ""}" style="animation-delay:${i * .12}s">
       <div class="top"><span class="plat ${esc(o.source)}">${esc(PLAT[o.source] || o.source)}</span>
         ${o.eta_min ? `<span class="fine">${o.eta_min} min</span>` : ""}
         ${i === 0 ? `<span class="badge-best">Best pick</span>` : ""}</div>
       <h3>${esc(o.item)}</h3>
       <div class="rest">${esc(o.restaurant)}</div>
-      <div class="price">${money(total)} <small>with fees</small></div>
-      <ul class="reasons">${(r.reasons || []).map(x => `<li><span>${esc(x.text)}</span>${cites(x.evidence_ids)}</li>`).join("")}</ul>
+      <div class="price">${money(total)} <small>${people > 1 ? `food for ${people}` : "food"}${o.fees ? ` + ${money(o.fees)} fees` : " · fees shown at checkout"}</small></div>
+      ${vsRow}
+      <ul class="reasons">${(r.reasons || []).map(x => `<li><span class="k ${esc(x.kind)}">${esc(x.kind === "evidence" ? "fact" : "inferred")}</span><span>${esc(prettyReason(x.text))}</span>${cites(x.evidence_ids)}</li>`).join("")}</ul>
       <div class="actions">
         <button class="btn primary" data-act="select">Choose</button>
         <button class="btn" data-act="reject" title="Hide this one and re-rank">Not this</button>
@@ -322,80 +987,13 @@ function renderHandoff(d) {
   push(el(`<a class="handoff" href="${esc(d.handoff_url)}" target="_blank" rel="noopener">Open ${esc(PLAT[p] || "checkout")} to pay ${money(d.quote?.total)} →</a>`));
 }
 
-// ---------- audit panel
-const list = (xs, n = 3) => (xs || []).slice(0, n).map(esc).join(", ") + ((xs || []).length > n ? ` +${xs.length - n} more` : "");
-
-// Payload shapes written by the real agent (agent/ + data/); the mock's shapes follow below.
-function realSummary(e) {
-  const p = e.payload || {};
-  if (p.what === "memory read from the store") return `Read memory: ${(p.order_ids || []).length} past orders, ${(p.hard_rules || []).length} hard rules${p.hard_rules?.length ? ` (${list(p.hard_rules)})` : ""}`;
-  if (p.request_text) return `Request: “${esc(p.request_text)}”`;
-  if (p.constraints) { const c = p.constraints; return `Parsed: ${[c.dish_query && `dish=${esc(c.dish_query)}`, c.cuisine && `cuisine=${esc(c.cuisine)}`, c.people && `people=${c.people}`, c.budget_total && `budget=${money(c.budget_total)}`, c.max_eta_min && `max=${c.max_eta_min} min`, c.hard_excludes?.length && `no ${list(c.hard_excludes)}`].filter(Boolean).join(", ")}`; }
-  if (e.kind === "evidence" && p.platform && p.offers != null && !p.error) return `Searched ${esc(PLAT[p.platform] || p.platform)} (${esc(p.mode)}): <b>${p.offers}</b> dishes`;
-  if (p.what === "same dish on both platforms") return `Same dish: ${esc(p.ubereats_item)} ≈ ${esc(p.doordash_item)} at ${esc(p.restaurant)} (${Math.round(p.confidence * 100)}%, ${esc(p.method)})`;
-  if (p.what === "matching fallback") return `Matching fallback: ${esc(p.note)}`;
-  if (p.what === "removed options that break a rule") { const why = {}; (p.removed || []).forEach(x => why[x.reason.split(" (")[0].split(":")[0]] = (why[x.reason.split(" (")[0].split(":")[0]] || 0) + 1);
-    return `Kept <b>${p.kept}</b>, removed ${(p.removed || []).length}${Object.keys(why).length ? ": " + Object.entries(why).map(([r, n]) => `${n} ${esc(r)}`).join(", ") : ""}`; }
-  if (p.what === "ranked options") return `Ranked by ${esc(p.ranker)}${p.requested_ranker && p.requested_ranker !== p.ranker ? ` (asked: ${esc(p.requested_ranker)})` : ""}: ${(p.top || []).slice(0, 3).map(t => `${esc(t.item)} ${money(t.est_total)}`).join(" › ")}`;
-  if (p.summary && p.writer) return `Explained (${esc(p.writer)}): ${esc(p.summary)}`;
-  if (p.decision === "select") return `User chose option ${esc(p.text)}`;
-  if (p.decision === "reject_one") return `User turned down one option: “${esc(p.text)}”`;
-  if (p.decision === "none_of_these") return `User: “${esc(p.text)}”`;
-  if (p.route && p.reader) return `Read feedback (${esc(p.reader)}): ${esc(p.route)}${p.reason ? ` — “${esc(p.reason)}”` : ""}${p.new_hard_rules?.length ? `; new rule: no ${list(p.new_hard_rules)}` : ""}`;
-  if (p.tool === "build_cart") return `Built cart on ${esc(PLAT[p.platform] || p.platform)}: ${(p.items || []).map(l => `${l.qty} × ${esc(l.item)}`).join(", ")}`;
-  if (p.tool === "quote") return `Live quote: <b>${money(p.total)}</b> (${money(p.subtotal)} + ${money(p.fees)} fees)`;
-  if (p.quote_ok != null) return `Quote check ${p.quote_ok ? "passed" : "<b>failed</b>"}: estimate ${money(p.estimate)}, quoted ${money(p.quoted_total)}${p.problems?.length ? ` — ${list(p.problems)}` : ""}`;
-  if (e.kind === "approval" && p.approved != null) return `User ${p.approved ? "<b>approved</b>" : "declined"} ${money(p.total)}${p.approved ? "" : `: “${esc(p.text)}”`}`;
-  if (p.tool === "submit") return `Handed off to checkout: <a href="${esc(p.handoff_url)}" target="_blank" rel="noopener">${esc(p.handoff_url)}</a>`;
-  if (p.what) return `${esc(p.what)}${p.note ? ": " + esc(p.note) : ""}${p.error ? ` (${esc(p.error)})` : ""}`;
-  return null;
-}
-
-function summary(e) {
-  const p = e.payload || {};
-  const real = realSummary(e);
-  if (real) return real;
-  if (e.kind === "evidence" && p.item) return `<b>${esc(p.item)}</b> at ${esc(p.restaurant)} on ${esc(PLAT[p.platform] || p.platform)}: ${money(p.price)} + ${money(p.fees)} fees${p.eta_min ? `, ${p.eta_min} min` : ""}`;
-  if (e.kind === "evidence" && p.error) return `${esc(PLAT[p.platform] || p.platform)} search failed (${esc(p.error)})`;
-  if (p.tool === "quote") return `Live quote: <b>${money(p.total)}</b>`;
-  if (p.what === "excluded") return `Dropped <b>${esc(p.offer)}</b>: ${esc(p.because)}`;
-  if (p.what === "ranking") return `Ranked by ${esc(p.ranker)}: ${(p.order || []).map(esc).join(" › ")}`;
-  if (p.what === "same dish on both platforms") return `Same dish: ${(p.items || []).map(esc).join(" ≈ ")} (${Math.round(p.confidence * 100)}%)`;
-  if (p.what === "quote check") return `Quote check ${p.ok ? "passed" : "<b>failed</b>"}: expected ${money(p.expected)}, got ${money(p.quoted)} (${p.drift_pct}%)`;
-  if (p.what === "parsed request") return `Parsed: ${Object.entries(p).filter(([k]) => !["what", "raw_text"].includes(k)).map(([k, v]) => `${esc(k)}=${esc(Array.isArray(v) ? v.join(",") : v)}`).join(", ")}`;
-  if (e.kind === "approval") return `User ${p.approved ? "approved" : "rejected"}${p.what ? " " + esc(p.what) : ""}${p.offer ? `: ${esc(p.offer)}` : ""}${p.total ? ` (${money(p.total)})` : ""}${p.reason ? ` — “${esc(p.reason)}”` : ""}`;
-  if (p.tool) return `Called <span class="mono">${esc(p.tool)}</span>${p.restaurant ? ` at ${esc(p.restaurant)}` : ""}${p.what ? ": " + esc(p.what) : ""}`;
-  return `<span class="mono">${esc(JSON.stringify(p))}</span>`;
-}
-
-function renderAudit(events, runId) {
-  const box = $("#events");
-  $("#runInfo").innerHTML = `Run <span class="mono">${esc(runId)}</span> · ${events.length} events`;
-  let lastNode = null, html = "";
-  for (const e of events) {
-    if (!shown[e.kind]) continue;
-    if (e.node !== lastNode) { html += `<div class="node-label">${esc(e.node)}</div>`; lastNode = e.node; }
-    const t = new Date(e.ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
-    html += `<div class="ev k-${esc(e.kind)}" id="ev-${esc(e.event_id)}">
-      <div class="row"><span class="kind">${esc(e.kind)}</span><span class="fine">${t}</span><span class="id mono">${esc(short(e.event_id))}</span></div>
-      <div class="body">${summary(e)}</div>
-      ${(e.evidence_ids?.length || e.source_url) ? `<div class="cites">${cites(e.evidence_ids)}${e.source_url ? `<a class="fine" href="${esc(e.source_url)}" target="_blank" rel="noopener">source ↗</a>` : ""}</div>` : ""}
-    </div>`;
-  }
-  box.innerHTML = html || `<p class="fine" style="padding:8px">No events match the filter.</p>`;
-  box.scrollTop = box.scrollHeight;
-}
-
 function showEvidence(id) {
   if (window.innerWidth <= 900) $("#audit").classList.add("open");
-  let node = document.getElementById("ev-" + id);
-  if (!node && last) { Object.keys(shown).forEach(k => shown[k] = true); syncFilters(); renderAudit(last.audit, last.run_id); node = document.getElementById("ev-" + id); }
-  if (!node) return;
+  const node = Audit.reveal(id); if (!node) return;
   node.scrollIntoView({ behavior: "smooth", block: "center" });
   node.classList.remove("flash"); void node.offsetWidth; node.classList.add("flash");
   setTimeout(() => node.classList.remove("flash"), 1600);
 }
-
 function syncFilters() {
   document.querySelectorAll("#filters button").forEach(b => {
     const k = b.dataset.k;
@@ -410,18 +1008,19 @@ $("#filters").onclick = e => {
   const k = b.dataset.k;
   if (k === "all") { const all = !Object.values(shown).every(Boolean); Object.keys(shown).forEach(x => shown[x] = all); }
   else shown[k] = !shown[k];
-  syncFilters(); if (last) renderAudit(last.audit, last.run_id);
+  syncFilters(); Audit.redraw();
 };
 $("#form").onsubmit = e => {
   e.preventDefault();
   const v = $("#input").value.trim(); if (!v || busy) return;
-  $("#input").value = ""; say("user", v); call({ message: v });
+  $("#input").value = ""; say("user", v); call({ message: v }, true);
 };
-document.querySelectorAll(".suggest button").forEach(b => b.onclick = () => { say("user", b.textContent); call({ message: b.textContent }); });
+document.querySelectorAll(".suggest button").forEach(b => b.onclick = () => { say("user", b.textContent); call({ message: b.textContent }, true); });
 $("#newChat").onclick = () => location.reload();
 $("#auditToggle").onclick = () => $("#audit").classList.toggle("open");
 
-fetch(API + "/orders/" + USER_ID).then(r => setConn(r.ok)).catch(() => setConn(false));
+let STATSIG = false;
+fetch(API + "/health").then(r => r.json()).then(h => { setConn(true); STATSIG = !!(h.statsig?.installed && !h.statsig?.error); }).catch(() => setConn(false));
 </script>
 </body>
 </html>
