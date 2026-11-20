@@ -12,6 +12,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import threading
 from datetime import datetime, timezone
 from typing import Any, Iterable
 
@@ -170,17 +171,35 @@ def ensure_vector_dims(conn) -> list[str]:
 
 
 class SingleStoreStore:
+    """One pymysql connection, shared behind a lock: the background distiller thread and the graph
+    both write, and a pymysql connection used by two threads at once corrupts its packet stream."""
+
     def __init__(self, conn=None) -> None:
         self.conn = conn or connect()
+        self._lock = threading.RLock()
+
+    def _run(self, fn):
+        with self._lock:
+            try:
+                return fn()
+            except Exception as exc:   # dropped connection: reconnect once and retry
+                if type(exc).__name__ not in ("OperationalError", "InterfaceError") or not hasattr(self.conn, "ping"):
+                    raise
+                self.conn.ping(reconnect=True)
+                return fn()
 
     def _exec(self, sql: str, args: Any = None, many: bool = False) -> None:
-        with self.conn.cursor() as cur:
-            (cur.executemany if many else cur.execute)(sql, args)
+        def go():
+            with self.conn.cursor() as cur:
+                (cur.executemany if many else cur.execute)(sql, args)
+        self._run(go)
 
     def _rows(self, sql: str, args: Any = None) -> list[dict]:
-        with self.conn.cursor() as cur:
-            cur.execute(sql, args)
-            return list(cur.fetchall())
+        def go():
+            with self.conn.cursor() as cur:
+                cur.execute(sql, args)
+                return list(cur.fetchall())
+        return self._run(go)
 
     # audit
     _AUDIT_SQL = ("INSERT INTO audit_events (event_id, run_id, node, ts, kind, source_url, actor_run_id, payload, "

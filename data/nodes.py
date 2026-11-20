@@ -111,7 +111,17 @@ def load_memory(state: AgentState) -> dict[str, Any]:
                               "preferences": [{k: p.get(k) for k in ("text", "confidence", "episode_ids")}
                                               for p in learned]},
                 [ev], run_id=run, node="load_memory")
-    return {"memory": _jsonable({"orders": orders, "rules": rules, "soft_prefs": soft, "rejections": rejections})}
+    # P1's memory shape (agent/default_nodes.py): hard_rules and soft_prefs are plain text lists,
+    # plus the evidence_id parse_request cites. P2's richer rows ride along in extra keys.
+    return {"memory": _jsonable({
+        "orders": orders,
+        "hard_rules": [r.get("text") for r in rules if r.get("text")],
+        "soft_prefs": [p.get("text") for p in soft if p.get("text")],
+        "evidence_id": ev,
+        "rules": rules,            # hard rules with their normalized term ("mushroom")
+        "learned": learned,        # learned preferences with confidence and episode IDs
+        "rejections": rejections,
+    })}
 
 
 def save_stated_rule(user_id: str, text: str, kind: str = "hard", run_id: str | None = None) -> str:
