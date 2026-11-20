@@ -732,7 +732,7 @@ const Stages = {
       p.innerHTML = `<div class="cap"><h4>Same dish, two apps: who is cheaper?</h4><p>SIE R3 embeddings + price ratio + main ingredient pair each dish across Uber Eats and DoorDash</p></div>
         <div class="mt"><div class="pairs"><div class="phead"><span style="color:var(--ue)">Uber Eats</span><span></span><span style="color:var(--dd)">DoorDash</span></div><div class="plist"></div></div>
         <div class="scatter"><svg viewBox="0 0 300 300" width="100%" height="100%"></svg><div class="sc-legend"></div></div></div>`;
-      this.p = p; this.n = 0; this.w = { ue: 0, dd: 0, tie: 0 }; this.max = 40;
+      this.p = p; this.n = 0; this.w = { ue: 0, dd: 0, tie: 0 }; this.max = 60;
       const svg = p.querySelector(".scatter svg");
       svg.innerHTML = `<rect x="40" y="10" width="250" height="250" fill="var(--surface-2)" rx="6"/>
         <line x1="40" y1="260" x2="290" y2="10" stroke="var(--muted)" stroke-dasharray="4 4"/>
@@ -747,7 +747,7 @@ const Stages = {
     event(e) {
       const pl = e.payload || {}; if (pl.what !== "same dish on both platforms") return;
       this.n++;
-      const ue = facts.price["ubereats|" + pl.ubereats_item]?.price, dd = facts.price["doordash|" + pl.doordash_item]?.price;
+      const ue = pl.ubereats_price ?? facts.price["ubereats|" + pl.ubereats_item]?.price, dd = pl.doordash_price ?? facts.price["doordash|" + pl.doordash_item]?.price;
       const win = ue == null || dd == null ? "" : Math.abs(ue - dd) < 0.005 ? "tie" : ue < dd ? "ue" : "dd";
       if (win) this.w[win]++;
       const row = el(`<div class="prow">
@@ -1141,8 +1141,8 @@ function otherPlatform(r) {
   const m = r.match_id && facts?.matches[r.match_id];
   if (!m) return null;
   const o = r.offer, other = o.source === "ubereats" ? "doordash" : "ubereats";
-  const p = facts.price[other + "|" + m[other + "_item"]];
-  return p ? { platform: other, price: p.price } : null;
+  const price = m[other + "_price"] ?? facts.price[other + "|" + m[other + "_item"]]?.price;
+  return price != null ? { platform: other, price } : null;
 }
 
 const prettyReason = t => String(t || "").replace(/ on ubereats/g, " on Uber Eats").replace(/ on doordash/g, " on DoorDash").replace(/ \+ \$0\.00 fees/g, "").replace(/ x (\d)/g, " × $1");

@@ -212,7 +212,8 @@ def match_offers(state: AgentState) -> dict[str, Any]:
     pairs = [(by_id[m.offer_ids[0]], by_id[m.offer_ids[1]], m) for m in matches]
     store.audit_many("inference", [
         ({"what": "same dish on both platforms", "restaurant": a.restaurant, "ubereats_item": a.item,
-          "doordash_item": b.item, "confidence": m.confidence, "method": method, "match_id": m.match_id},
+          "doordash_item": b.item, "ubereats_price": a.price, "doordash_price": b.price,
+          "offer_ids": [a.offer_id, b.offer_id], "confidence": m.confidence, "method": method, "match_id": m.match_id},
          m.evidence_ids, None) for a, b, m in pairs], run_id=run, node="match_offers")
     if note:
         c.audit("inference", {"what": "matching fallback", "note": note, "matches": len(matches)},
