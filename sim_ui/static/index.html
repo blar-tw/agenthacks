@@ -418,7 +418,7 @@ function learn(e) {
   const p = e.payload || {};
   if (e.node === "normalize" && p.item) {
     facts.price[p.platform + "|" + p.item] = p;
-    const k = rkey(p.restaurant).replace(/^zyrestaurant$/, "zyrestaurant");
+    const k = placeKey(p.restaurant);
     facts.counts[k] = facts.counts[k] || { ubereats: 0, doordash: 0, name: p.restaurant };
     facts.counts[k][p.platform] = (facts.counts[k][p.platform] || 0) + 1;
   }
@@ -427,6 +427,11 @@ function learn(e) {
   if (p.tool === "build_cart" && p.platform) facts.platform = p.platform;
 }
 
+function placeKey(name) {
+  const k = rkey(String(name || "").replace(/&amp;/g, "&"));
+  const hit = RESTAURANTS.find(r => r.key === k) || RESTAURANTS.find(r => k.startsWith(r.key) || r.key.startsWith(k));
+  return hit ? hit.key : k;
+}
 // What an evidence id points at, in words (instead of a hash).
 function citeLabel(id) {
   const e = facts?.events[id]; if (!e) return short(id);
@@ -998,7 +1003,7 @@ function updateMap(map, st, platforms) {
     if (lab) lab.querySelector(".c").innerHTML = `<span style="color:var(--ue)">UE ${c.ubereats || 0}</span> · <span style="color:var(--dd)">DD ${c.doordash || 0}</span>`;
   });
   map._overlay.setProps({ layers: [
-    new deck.TextLayer({ id: "names", data: RESTAURANTS.filter(r => r.both === false && (facts?.counts[r.key]?.doordash || 0) > 0), getPosition: d => d.pos,
+    new deck.TextLayer({ id: "names", data: RESTAURANTS.filter(r => r.both === false && ((facts?.counts[r.key]?.doordash || 0) + (facts?.counts[r.key]?.ubereats || 0)) > 0), getPosition: d => d.pos,
       getText: d => d.name, getSize: 11, getColor: isDark() ? [230, 230, 230, 220] : [40, 40, 40, 220], getPixelOffset: [0, 14], fontFamily: "Inter, sans-serif", characterSet: "auto" }),
     new deck.ArcLayer({ id: "arcs", data: arcs, getSourcePosition: d => d.from, getTargetPosition: d => d.to, getSourceColor: d => [...d.color, 90],
       getTargetColor: d => [...d.color, d.thin ? 150 : 255], getWidth: d => d.thin ? 1.5 : 3.5, getHeight: d => d.h, greatCircle: false }),
@@ -1054,7 +1059,12 @@ async function play() {
   while (Q.length) {
     const e = Q[0];
     let n = 0; while (n < Q.length && Q[n].node === e.node && n < 2000) n++;
-    const key = stageOf(e);
+    if (e.node === "normalize" && n > 10) {
+      const seg = Q.slice(0, n);
+      for (let i = seg.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [seg[i], seg[j]] = [seg[j], seg[i]]; }
+      Q.splice(0, n, ...seg);
+    }
+    const key = stageOf(Q[0]);
     if (key !== curStage) { if (curStage) await sleep(DWELL[curStage] || 900); curStage = key; card?.activate(key); await sleep(250); }
     const batch = n > 10 ? Math.max(1, Math.ceil(n / 28)) : 1;
     for (const ev of Q.splice(0, batch)) {

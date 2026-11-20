@@ -251,6 +251,14 @@ def _jsonable_rows(out: dict) -> dict:
     return out
 
 
+UE_ONLY_COORDS = {   # street addresses from the Uber Eats store pages, geocoded by hand
+    "taishancuisine": (37.7978, -122.4096), "dumplinghousesf": (37.7641, -122.4334),
+    "dumplingstorybydumplinghome": (37.7896, -122.4337), "uniteddumplingschestnut": (37.8007, -122.4370),
+    "sichuantastyrestaurant": (37.7822, -122.4805), "littlesichuan": (37.7981, -122.4054),
+    "yuanbaojiaozi": (37.7635, -122.4807), "houseofdimsum": (37.7959, -122.4066),
+}
+
+
 @app.get("/places")
 def places() -> dict:
     """Every restaurant in the saved Apify runs, with DoorDash's coordinates and which apps list it (for the map)."""
@@ -266,7 +274,12 @@ def places() -> dict:
                 out[key(s["name"])] = {"key": key(s["name"]), "name": s["name"], "lat": s["latitude"], "lng": s["longitude"],
                                        "platforms": ["doordash"], "cuisines": s.get("cuisines") or []}
         for it in json.loads((fx / "ubereats.json").read_text(encoding="utf-8")):
-            p = out.get(key(it.get("storeName", "")))
+            k = key(it.get("storeName", ""))
+            p = out.get(k) or next((v for kk, v in out.items() if k.startswith(kk) or kk.startswith(k)), None)
+            if p is None and k in UE_ONLY_COORDS:   # Uber Eats gives no coordinates; these are the store addresses
+                lat, lng = UE_ONLY_COORDS[k]
+                p = out[k] = {"key": k, "name": html.unescape(it.get("storeName", "")), "lat": lat, "lng": lng,
+                              "platforms": [], "cuisines": []}
             if p and "ubereats" not in p["platforms"]:
                 p["platforms"].append("ubereats")
     except Exception as e:

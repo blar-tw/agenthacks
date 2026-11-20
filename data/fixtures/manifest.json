@@ -4,7 +4,12 @@
     "actor": "corent1robert/uber-eats-menu-scraper",
     "actor_run_id": "C9CJ8htdzT5rYhQUT",
     "scraped_at": "2026-11-20T20:52:04.664054+00:00",
-    "items": 499
+    "items": 1167,
+    "extra_url_run": {
+      "actor_run_id": "Xp6ksaHzOXUJeTdJa",
+      "scraped_at": "2026-11-20T23:19:50.123287+00:00",
+      "stores_added": 9
+    }
   },
   "doordash": {
     "synthetic": false,
