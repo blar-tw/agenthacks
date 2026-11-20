@@ -185,7 +185,8 @@ def route_after_verify(state: dict) -> str:
     return "approve_purchase" if state.get("quote_ok") else "filter_rank"
 
 
-_YES = re.compile(r"^\s*(y|yes|yep|yeah|approve|approved|confirm|ok|okay|sure|go ahead|do it)\b", re.I)
+# Explicit approval only: the whole reply must be a plain yes. "ok but cancel" is not approval.
+_YES = re.compile(r"\s*(y|yes|yep|yeah|approve|approved|confirm|ok|okay|sure|go ahead|do it)\s*[.!]?\s*", re.I)
 
 
 def approve_purchase(state: dict) -> dict:
@@ -193,7 +194,7 @@ def approve_purchase(state: dict) -> dict:
     msg = (f"Approve {sel['offer']['item']} from {sel['offer']['restaurant']} on {q['platform']} "
            f"for ${q['total']:.2f} (incl. ${q['fees']:.2f} fees)? You pay on {q['platform']}. Reply yes or no.")
     answer = str(interrupt({"type": "approve_purchase", "message": msg, "cart": q}))
-    approved = bool(_YES.match(answer))
+    approved = bool(_YES.fullmatch(answer))
     eid = audit("approval", {"approved": approved, "text": answer, "cart_id": q["cart_id"], "total": q["total"]},
                 [q["evidence_id"]] if q.get("evidence_id") else [])
     log_event("purchase_approved" if approved else "purchase_rejected", {"run_id": state.get("run_id")})

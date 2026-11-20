@@ -1,13 +1,15 @@
 """Shared helpers for smoke checks. Never prints secret values."""
 from __future__ import annotations
 
+from pathlib import Path
+
 import os
 import sys
 from typing import Callable
 
 from dotenv import load_dotenv
 
-ENV_PATH = "/Users/catherinezheng/agenthacks/.env"
+ENV_PATH = str(Path(__file__).resolve().parent.parent / ".env")
 
 
 class Skip(Exception):

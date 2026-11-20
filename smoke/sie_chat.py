@@ -46,6 +46,9 @@ def _invoke(base_url: str, key: str, model: str) -> str:
     ms = int((time.time() - t0) * 1000)
     if not msg.tool_calls:
         raise RuntimeError(f"no tool calls in response (content len {len(str(msg.content))})")
+    if os.environ.get("LLM_PROVIDER") == "fallback":
+        from agent import llm as agent_llm
+        agent_llm.record_fallback_cost(msg)
     c = Constraints.model_validate(msg.tool_calls[0]["args"])
     if c.people != 2 or c.budget_total != 40:
         raise RuntimeError(f"unexpected values: {c.model_dump()}")
@@ -74,7 +77,14 @@ def sie() -> str:
 
 
 def fallback() -> str:
-    return _invoke(_env("FALLBACK_LLM_BASE_URL"), _env("FALLBACK_LLM_API_KEY"), _env("FALLBACK_LLM_MODEL"))
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+    from agent import llm as agent_llm  # spend cap lives there
+
+    if agent_llm.fallback_over_budget():
+        raise Skip(f"OpenRouter cap reached: ${agent_llm.fallback_spent():.2f} of ${agent_llm.fallback_budget():.2f}")
+    os.environ["LLM_PROVIDER"] = "fallback"  # so the cost is recorded against the cap
+    result = _invoke(_env("FALLBACK_LLM_BASE_URL"), _env("FALLBACK_LLM_API_KEY"), _env("FALLBACK_LLM_MODEL"))
+    return f"{result} spent=${agent_llm.fallback_spent():.4f}/${agent_llm.fallback_budget():.0f}"
 
 
 if __name__ == "__main__":

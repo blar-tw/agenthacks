@@ -12,6 +12,7 @@ Pluggable parts, so P2 and P3 never edit this file to swap in real backends:
 from __future__ import annotations
 
 import contextvars
+import re
 import uuid
 from datetime import datetime, timezone
 from typing import Any, Callable, Literal, Optional, Protocol, TypedDict
@@ -175,6 +176,12 @@ _STUB_MENU: list[dict[str, Any]] = [
 ]
 
 
+def stable_offer_id(source: str, restaurant: str, item: str) -> str:
+    """Same dish -> same id across scrapes, so rejected[] survives a re-scrape. Real tools should use it."""
+    slug = re.sub(r"[^a-z0-9]+", "-", f"{restaurant} {item}".lower()).strip("-")
+    return f"{source}:{slug}"
+
+
 class StubTools:
     """Deterministic in-process shop used until real modes are registered."""
 
@@ -190,7 +197,8 @@ class StubTools:
         if platform in self.fail_platforms:
             raise TimeoutError(f"{platform} search failed")
         return [
-            Offer(**row, url=f"https://{row['source']}.example/store/{row['restaurant'].replace(' ', '-').lower()}")
+            Offer(**row, offer_id=stable_offer_id(row["source"], row["restaurant"], row["item"]),
+                  url=f"https://{row['source']}.example/store/{row['restaurant'].replace(' ', '-').lower()}")
             for row in _STUB_MENU
             if row["source"] == platform
         ]
@@ -240,17 +248,22 @@ def reset_tools() -> None:
 
 # ---------------------------------------------------------------- memory store
 
-SECRET_KEYS = ("password", "passwd", "cookie", "token", "secret", "api_key", "apikey",
-               "authorization", "session", "card", "cvv")
+SECRET_KEYS = ("password", "passwd", "pwd", "passcode", "cookie", "token", "secret", "api_key", "apikey",
+               "auth", "bearer", "jwt", "csrf", "credential", "private", "session", "card", "cvv", "pan")
+_SECRET_VALUE = re.compile(
+    r"(sk-[A-Za-z0-9_-]{8,}|secret-[A-Za-z0-9_-]{8,}|apify_api_[A-Za-z0-9]{8,}|Bearer\s+[A-Za-z0-9._-]{8,}"
+    r"|\b(?:\d[ -]?){13,19}\b)")
 
 
 def scrub(obj: Any) -> Any:
-    """Drop secret-looking keys before anything leaves the process or is stored."""
+    """Drop secret-looking keys and redact secret-looking values before anything leaves the process."""
     if isinstance(obj, dict):
         return {k: scrub(v) for k, v in obj.items()
                 if not any(s in str(k).lower() for s in SECRET_KEYS)}
-    if isinstance(obj, list):
+    if isinstance(obj, (list, tuple, set)):
         return [scrub(v) for v in obj]
+    if isinstance(obj, str):
+        return _SECRET_VALUE.sub("<redacted>", obj)
     return obj
 
 
