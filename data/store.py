@@ -114,11 +114,31 @@ def schema_statements() -> list[str]:
     return [s.strip() for s in body.split(";") if s.strip()]
 
 
+VECTOR_COLUMNS = (("preferences", "vec"), ("price_snapshots", "dish_vec"))
+
+
 def create_tables(conn) -> list[str]:
     with conn.cursor() as cur:
         for stmt in schema_statements():
             cur.execute(stmt)
     return list(TABLES)
+
+
+def ensure_vector_dims(conn) -> list[str]:
+    """Rebuild a vector column whose size differs from EMBED_DIM (after an embedding-model switch).
+    Old vectors from another model can't be compared with new ones, so they are dropped."""
+    want = f"vector({config.EMBED_DIM}"
+    changed = []
+    with conn.cursor() as cur:
+        for table, col in VECTOR_COLUMNS:
+            cur.execute("SELECT COLUMN_TYPE FROM information_schema.COLUMNS "
+                        "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s AND COLUMN_NAME = %s", (table, col))
+            row = cur.fetchone()
+            if row and not str(row["COLUMN_TYPE"]).lower().startswith(want):
+                cur.execute(f"ALTER TABLE {table} DROP COLUMN {col}")
+                cur.execute(f"ALTER TABLE {table} ADD COLUMN {col} VECTOR({config.EMBED_DIM})")
+                changed.append(f"{table}.{col}: {row['COLUMN_TYPE']} -> VECTOR({config.EMBED_DIM})")
+    return changed
 
 
 class SingleStoreStore:
@@ -256,8 +276,19 @@ class SingleStoreStore:
                      _j(m.get("evidence_ids", [])), _naive(c.now())) for m in matches], many=True)
 
     def set_snapshot_vectors(self, vectors: dict[str, list[float]]) -> None:
-        self._exec("UPDATE price_snapshots SET dish_vec=%s WHERE offer_id=%s",
-                   [(json.dumps([round(float(x), 6) for x in v]), k) for k, v in vectors.items()], many=True)
+        """One UPDATE ... CASE per 100 rows: pymysql's executemany batches only INSERT/REPLACE,
+        so a plain UPDATE per row cost ~80 ms each (617 rows: 50 s)."""
+        items = list(vectors.items())
+        for i in range(0, len(items), 100):
+            chunk = items[i:i + 100]
+            cases = " ".join("WHEN %s THEN %s" for _ in chunk)
+            args: list = []
+            for k, v in chunk:
+                args += [k, json.dumps([round(float(x), 6) for x in v])]
+            args += [k for k, _ in chunk]
+            marks = ",".join(["%s"] * len(chunk))
+            self._exec(f"UPDATE price_snapshots SET dish_vec = CASE offer_id {cases} END "
+                       f"WHERE offer_id IN ({marks})", args)
 
 
 # ---------------------------------------------------------------- helpers (work on any MemoryStore)

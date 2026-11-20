@@ -50,8 +50,12 @@ def attempt(mode: str) -> bool:
 if importlib.util.find_spec("cognee") is None:
     s.fail("cognee is not installed (run: uv sync --extra memory)")
 elif s.need("COGNEE_API_KEY"):
+    # OpenAI is the user's own paid key: try it only when asked (--allow-openai).
     if attempt("sie"):
         s.info("SIE works as Cognee's LLM: keep DISTILLER=cognee, no OpenAI key needed")
+    elif "--allow-openai" not in sys.argv:
+        s.fail("SIE did not work as Cognee's LLM. OpenAI fallback not tried (needs --allow-openai); "
+               "or use DISTILLER=counting (Brief 9.6 cut 1)")
     elif attempt("openai"):
         s.info("SIE does NOT work as Cognee's LLM; OpenAI fallback works (Brief 12, open item 2)")
     else:

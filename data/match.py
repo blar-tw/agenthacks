@@ -17,11 +17,18 @@ from data.sie import Embedder, cosine
 
 _SYN = {"szechuan": "sichuan", "szechwan": "sichuan", "w/": "with ", "&": " and ", "—": " ", "-": " "}
 _STOP = {"restaurant", "kitchen", "the", "cafe", "inc", "llc", "sf"}
-_SIZE = {"small", "medium", "large", "regular", "family", "half", "full"}
+_SIZE = {"small", "medium", "large", "regular", "family", "half", "full", "vegetarian", "vegan"}
+# Main ingredients: two dish names that each name one, with none in common, are different dishes
+# ("Shrimp Chow Mein" vs "Beef Chow Mein" scores 0.785 on vectors alone).
+_MAIN = {"beef", "pork", "chicken", "shrimp", "prawn", "fish", "lamb", "duck", "tofu", "crab", "squid", "scallop",
+         "clam", "frog", "intestine", "eggplant", "lobster", "oyster", "cod", "salmon", "tripe", "mutton", "gizzard"}
 
+# Calibrated on the 2026-11-20 real fixtures (5 stores x 2 platforms) with tencent/R3-embedding-0.6b
+# on dish names: >= 0.86 were the same dish; 0.80-0.83 held "Sichuan Style Spicy Chicken" vs
+# "Chongqing Style Spicy Chicken"; 0.83-0.86 held true pairs such as the onion pancake and frog.
 RESTAURANT_MIN = 0.85
-VECTOR_MIN = 0.80
-FUZZY_MIN = 0.70
+VECTOR_MIN = 0.83
+FUZZY_MIN = 0.80          # token_sort on names, for the no-embeddings fallback
 MAX_PRICE_RATIO = 1.5
 
 
@@ -53,6 +60,15 @@ def _sizes(o: Offer) -> set[str]:
     return {w for w in _SIZE if f" {w} " in text}
 
 
+def _main(o: Offer) -> set[str]:
+    return {w.rstrip("s") for w in norm(o.item).split() if w.rstrip("s") in _MAIN or w in _MAIN}
+
+
+def main_ingredient_conflict(a: Offer, b: Offer) -> bool:
+    ma, mb = _main(a), _main(b)
+    return bool(ma and mb and not (ma & mb))
+
+
 def _confidence(sim: float, a: Offer, b: Offer) -> float:
     ratio = max(a.price, b.price) / max(min(a.price, b.price), 0.01)
     if ratio > MAX_PRICE_RATIO:
@@ -64,7 +80,9 @@ def _confidence(sim: float, a: Offer, b: Offer) -> float:
 
 
 def dish_text(o: Offer) -> str:
-    return f"{o.item}. {o.description}".strip(". ")
+    """The text embedded for matching: the dish name only. Descriptions differ between
+    platforms and pulled identical dishes apart ("Ma-Po Tofu w.Ground Pork": 0.737 with them)."""
+    return o.item
 
 
 def match_offers(offers: list[Offer], embedder: Embedder | None = None,
@@ -100,10 +118,12 @@ def match_offers(offers: list[Offer], embedder: Embedder | None = None,
         pairs = []
         for a in by_store[uk]:
             for b in by_store[best_dk]:
+                if main_ingredient_conflict(a, b):
+                    continue
                 if method == "vector":
                     sim, floor = cosine(vecs[a.offer_id], vecs[b.offer_id]), VECTOR_MIN
                 else:
-                    sim, floor = fuzz.token_set_ratio(norm(a.item), norm(b.item)) / 100, FUZZY_MIN
+                    sim, floor = fuzz.token_sort_ratio(norm(a.item), norm(b.item)) / 100, FUZZY_MIN
                 if sim >= floor:
                     pairs.append((sim, a, b))
         used: set[str] = set()
