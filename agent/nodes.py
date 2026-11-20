@@ -13,7 +13,7 @@ from datetime import datetime
 
 from langgraph.types import interrupt
 
-from agent.default_nodes import tool_mode
+from agent.default_nodes import estimate_total, tool_mode
 from agent.llm import extract_constraints, read_feedback, summarize_options
 from contracts import Constraints, Offer, audit, get_tools, log_event, write_preference
 
@@ -88,13 +88,15 @@ def explain(state: dict) -> dict:
     c = Constraints(**state.get("constraints", {}))
     options = state.get("ranked", [])[:3]
     for opt in options:
+        # `total` is not in the RankedOption contract; P2's ranker leaves it out
+        opt.setdefault("total", estimate_total(Offer(**opt["offer"]), c.people))
         opt["reasons"] = _reasons(opt, c, state.get("request_eid"))
     summary, writer = summarize_options(c.model_dump(), options)
     lines = []
     for i, opt in enumerate(options, 1):
         o = opt["offer"]
         lines.append(f"{i}. {o['item']} - {o['restaurant']} ({o['source']}) ${opt['total']:.2f}, "
-                     f"{o.get('eta_min')} min")
+                     + (f"{o['eta_min']} min" if o.get("eta_min") is not None else "ETA not listed"))
     missing = state.get("missing_platforms") or []
     note = f"\n({', '.join(missing)} did not respond; showing the other platform.)" if missing else ""
     if options:

@@ -13,3 +13,7 @@ __pycache__/
 .omc/
 playwright-profile/
 .mealmatch/
+
+# Cognee local state (P2)
+.cognee_system/
+.data_storage/

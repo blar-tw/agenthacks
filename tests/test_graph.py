@@ -1,7 +1,7 @@
 """Full-graph paths on the stub shop (doc 7 and 10.3 scenarios)."""
 
 import contracts
-from agent.graph import ALL_NODES, chat, get_graph, run_fixture_demo
+from agent.graph import ALL_NODES, chat, get_graph, node_names, run_fixture_demo
 from smoke.audit_integrity import check_run
 from tests.conftest import DEMO
 
@@ -14,9 +14,11 @@ def _submits(run_id):
     return [e for e in _events(run_id) if e.kind == "action" and e.payload.get("tool") == "submit"]
 
 
-def test_graph_has_all_18_nodes():
+def test_graph_has_every_node():
     names = {n for n in get_graph().get_graph().nodes if not n.startswith("__")}
-    assert names == set(ALL_NODES) and len(names) == 18
+    assert names == set(node_names())
+    # 18 with the two default scrape nodes; 17 when P2's single `scrape` node replaces them
+    assert len(names) == (17 if "scrape" in names else 18) and len(ALL_NODES) == 18
 
 
 def test_happy_path_submits_once_after_approval(tools):

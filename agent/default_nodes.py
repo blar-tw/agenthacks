@@ -105,12 +105,12 @@ def estimate_total(o: Offer, people: int) -> float:
     return round(o.price * max(people, 1) + o.fees, 2)
 
 
-def filter_rank(state: AgentState) -> dict:
+def _split(state: AgentState) -> tuple[list[tuple[Offer, float]], list[dict]]:
+    """Offers that pass every rule (with their total), and the dropped ones with why."""
     c = Constraints(**state.get("constraints", {}))
     rejected = set(state.get("rejected", []))
     excludes = [e.lower() for e in c.hard_excludes]
-    match_by_offer = {oid: m["match_id"] for m in state.get("matches", []) for oid in m["offer_ids"]}
-    kept, dropped = [], []
+    passed, dropped = [], []
     for row in state.get("offers", []):
         o = Offer(**row)
         text = f"{o.item} {o.description}".lower()
@@ -126,8 +126,22 @@ def filter_rank(state: AgentState) -> dict:
             why = "too slow"
         if why:
             dropped.append({"offer_id": o.offer_id, "item": o.item, "why": why, "evidence_id": o.evidence_id})
-            continue
-        kept.append(RankedOption(offer=o, score=-total, ranker="price", match_id=match_by_offer.get(o.offer_id)))
+        else:
+            passed.append((o, total))
+    return passed, dropped
+
+
+def near_misses(state: AgentState) -> list[dict]:
+    """Dropped offers that only missed on budget or time: explain shows them when nothing fits."""
+    return [d for d in _split(state)[1] if d["why"] in ("over budget", "too slow")]
+
+
+def filter_rank(state: AgentState) -> dict:
+    c = Constraints(**state.get("constraints", {}))
+    match_by_offer = {oid: m["match_id"] for m in state.get("matches", []) for oid in m["offer_ids"]}
+    passed, dropped = _split(state)
+    kept = [RankedOption(offer=o, score=-total, ranker="price", match_id=match_by_offer.get(o.offer_id))
+            for o, total in passed]
     kept.sort(key=lambda r: r.score, reverse=True)
     ranker = state.get("ranker", "price")
     ev = [r.offer.evidence_id for r in kept if r.offer.evidence_id] + \

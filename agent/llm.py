@@ -213,7 +213,8 @@ def summarize_options(constraints: dict, options: list[dict]) -> tuple[str, str]
         return "No option meets all your rules.", "template"
     f = facts[0]
     return (f"Option 1 is {f['item']} from {f['restaurant']} on {f['platform']}: "
-            f"${f['total_usd']:.2f} total, about {f['eta_min']} min."), "template"
+            f"${f['total_usd']:.2f} total, " + (f"about {f['eta_min']} min." if f['eta_min'] is not None
+                                                 else "delivery time not listed.")), "template"
 
 
 # ---------------------------------------------------------------- handle_feedback

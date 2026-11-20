@@ -1,8 +1,12 @@
-"""MealMatch LangGraph (doc section 7): 18 nodes, a checkpointer, 2 interrupts.
+"""MealMatch LangGraph (doc section 7): 17-18 nodes, a checkpointer, 2 interrupts.
 
 Nodes owned by P2/P3 are resolved at build time: a function with the node's
 name in data/nodes.py or sim_ui/nodes.py replaces the default in
 agent/default_nodes.py, so merging their branches needs no edit here.
+
+Scrape step: if a plug-in module provides one `scrape` node (both platforms at
+once, writing `offers`), the graph uses it; otherwise it runs the two default
+nodes `scrape_ubereats` and `scrape_doordash` in parallel.
 """
 
 from __future__ import annotations
@@ -52,8 +56,12 @@ def set_ranker_provider(fn: Callable[[str], str]) -> None:
     _ranker_provider = fn
 
 
-def _resolve(name: str) -> Callable:
-    for modname in ("data.nodes", "sim_ui.nodes"):
+PLUGIN_MODULES = ("data.nodes", "sim_ui.nodes")
+SPLIT_SCRAPE = ["scrape_ubereats", "scrape_doordash"]
+
+
+def _plugin(name: str) -> tuple[Optional[str], Optional[Callable]]:
+    for modname in PLUGIN_MODULES:
         try:
             mod = importlib.import_module(modname)
         except ModuleNotFoundError as e:
@@ -62,10 +70,29 @@ def _resolve(name: str) -> Callable:
             continue
         fn = getattr(mod, name, None)
         if callable(fn):
-            NODE_SOURCES[name] = modname
-            return fn
+            return modname, fn
+    return None, None
+
+
+def _resolve(name: str) -> Callable:
+    modname, fn = _plugin(name)
+    if fn is not None:
+        NODE_SOURCES[name] = modname
+        return fn
     NODE_SOURCES[name] = "agent.default_nodes"
     return getattr(default_nodes, name)
+
+
+def scrape_nodes() -> list[str]:
+    """['scrape'] when a plug-in provides one scrape node, else the two default per-platform nodes."""
+    return ["scrape"] if _plugin("scrape")[1] is not None else list(SPLIT_SCRAPE)
+
+
+def node_names() -> list[str]:
+    """The node names the graph is built with, in reading order."""
+    if scrape_nodes() == list(SPLIT_SCRAPE):
+        return list(ALL_NODES)
+    return [("scrape" if n == SPLIT_SCRAPE[0] else n) for n in ALL_NODES if n != SPLIT_SCRAPE[1]]
 
 
 def _with_audit(name: str, fn: Callable) -> Callable:
@@ -79,18 +106,38 @@ def _with_audit(name: str, fn: Callable) -> Callable:
     return run
 
 
+def _with_near_misses(fn: Callable) -> Callable:
+    """A plug-in filter_rank may not return near_misses; explain needs them when nothing fits."""
+    def run(state: dict) -> dict:
+        out = fn(state)
+        if "near_misses" not in out:
+            out = {**out, "near_misses": default_nodes.near_misses(state) if not out.get("ranked") else []}
+        return out
+    return run
+
+
 def build_graph(checkpointer: Any = None):
     g = StateGraph(GraphState)
     for name in P1_NODES:
         g.add_node(name, _with_audit(name, getattr(nodes, name)))
+    scrape = scrape_nodes()
     for name in DELEGATED_NODES:
+        if name not in SPLIT_SCRAPE:
+            fn = _resolve(name)
+            if name == "filter_rank" and fn is not default_nodes.filter_rank:
+                fn = _with_near_misses(fn)
+            g.add_node(name, _with_audit(name, fn))
+    for name in scrape:
         g.add_node(name, _with_audit(name, _resolve(name)))
+
+    def route_after_parse(state: dict):
+        route = nodes.route_after_parse(state)
+        return scrape if route == SPLIT_SCRAPE else route
 
     g.add_edge(START, "load_memory")
     g.add_edge("load_memory", "parse_request")
-    g.add_conditional_edges("parse_request", nodes.route_after_parse,
-                            ["scrape_ubereats", "scrape_doordash", "filter_rank"])
-    g.add_edge(["scrape_ubereats", "scrape_doordash"], "normalize")  # waits for both (each has a timeout)
+    g.add_conditional_edges("parse_request", route_after_parse, [*scrape, "filter_rank"])
+    g.add_edge(scrape, "normalize")  # with split nodes, waits for both (each has a timeout)
     g.add_edge("normalize", "match_offers")
     g.add_edge("match_offers", "filter_rank")
     g.add_edge("filter_rank", "explain")

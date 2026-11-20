@@ -1,0 +1,4 @@
+{
+  "ubereats": {"synthetic": true, "actor": "corent1robert/uber-eats-menu-scraper", "actor_run_id": null, "scraped_at": "2026-11-20T11:42:00+00:00", "items": 10, "note": "Hand-made in the Actor's documented flat output shape. Replace with a real run (smoke/apify.py --live --save)."},
+  "doordash": {"synthetic": true, "actor": "haketa/doordash-scraper", "actor_run_id": null, "scraped_at": "2026-11-20T11:42:30+00:00", "items": 5, "note": "Hand-made in the Actor's documented output shape. Replace with a real run (smoke/apify.py --live --save)."}
+}

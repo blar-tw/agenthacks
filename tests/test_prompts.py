@@ -45,7 +45,8 @@ def _assert_system_first(messages, task_marker):
 def test_all_three_llm_jobs_use_the_system_prompt():
     fake = RecordingLLM(ARGS)
     llm.set_llm(fake)
-    chat("t", DEMO)             # parse_request + explain
+    first = chat("t", DEMO)     # parse_request + explain
+    shown = first["options"][0]["restaurant"]
     chat("t", "1")
     chat("t", "no, too oily")   # handle_feedback
     jobs = {}
@@ -56,7 +57,7 @@ def test_all_three_llm_jobs_use_the_system_prompt():
     _assert_system_first(jobs["text"], "why option 1")
     _assert_system_first(jobs["FeedbackDecision"], "FeedbackDecision")
     assert "<request>" in jobs["ExtractConstraints"][1].content
-    assert "<options>" in jobs["text"][1].content and "Mala House" in jobs["text"][1].content
+    assert "<options>" in jobs["text"][1].content and shown in jobs["text"][1].content
     assert "<feedback>\nno, too oily" in jobs["FeedbackDecision"][1].content
 
 
