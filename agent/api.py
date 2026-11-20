@@ -251,6 +251,29 @@ def _jsonable_rows(out: dict) -> dict:
     return out
 
 
+@app.get("/places")
+def places() -> dict:
+    """Every restaurant in the saved Apify runs, with DoorDash's coordinates and which apps list it (for the map)."""
+    import json
+    import re
+    fx = Path(__file__).resolve().parent.parent / "data" / "fixtures"
+    import html
+    key = lambda s: re.sub("[^a-z]", "", html.unescape(str(s)).lower())  # noqa: E731
+    out: dict[str, dict] = {}
+    try:
+        for s in json.loads((fx / "doordash.json").read_text(encoding="utf-8")):
+            if s.get("latitude") is not None and s.get("menu"):
+                out[key(s["name"])] = {"key": key(s["name"]), "name": s["name"], "lat": s["latitude"], "lng": s["longitude"],
+                                       "platforms": ["doordash"], "cuisines": s.get("cuisines") or []}
+        for it in json.loads((fx / "ubereats.json").read_text(encoding="utf-8")):
+            p = out.get(key(it.get("storeName", "")))
+            if p and "ubereats" not in p["platforms"]:
+                p["platforms"].append("ubereats")
+    except Exception as e:
+        return {"places": [], "error": type(e).__name__}
+    return {"places": list(out.values())}
+
+
 @app.get("/orders/{user_id}")
 def orders(user_id: str) -> dict:
     return {"user_id": user_id, "orders": read_orders(user_id, 5)}

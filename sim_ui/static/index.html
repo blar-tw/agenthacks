@@ -179,6 +179,24 @@ svg text { font-family: Inter, system-ui, sans-serif; }
 .tick .bar i { display: block; height: 100%; background: var(--k-inference); }
 .tick span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
+.mt { position: absolute; inset: 62px 14px 12px; display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 14px; }
+.phead { display: grid; grid-template-columns: 1fr 64px 1fr; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; margin-bottom: 6px; }
+.phead span:last-child { text-align: right; }
+.plist { display: flex; flex-direction: column; gap: 6px; }
+.prow { display: grid; grid-template-columns: 1fr 64px 1fr; align-items: center; animation: slidein .35s; }
+.prow small { grid-column: 1 / -1; font-size: 10.5px; color: var(--muted); margin-top: 1px; }
+.pd { display: flex; justify-content: space-between; gap: 6px; border: 1px solid var(--border); border-radius: 8px; padding: 4px 8px; font-size: 12px; background: var(--surface); min-width: 0; }
+.pd b { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pd span { font-variant-numeric: tabular-nums; font-weight: 700; flex: none; }
+.pd.win { border-color: var(--ok); background: color-mix(in srgb, var(--ok) 12%, var(--surface)); }
+.plink { position: relative; height: 22px; display: grid; place-items: center; }
+.plink i { position: absolute; left: 4px; right: 4px; top: 50%; height: 3px; transform: translateY(-50%); background: linear-gradient(90deg, var(--k-inference) var(--c), var(--border) var(--c)); border-radius: 2px; }
+.plink span { position: relative; font-size: 10.5px; font-weight: 700; color: var(--k-inference); background: var(--surface); padding: 0 4px; border-radius: 4px; }
+.scatter { display: flex; flex-direction: column; min-height: 0; }
+.scatter svg { flex: 1; min-height: 0; }
+.sc-legend { font-size: 11.5px; text-align: center; color: var(--muted); }
+.sc-legend b { color: var(--text); }
+
 /* funnel */
 .funnel { position: absolute; inset: 70px 18px 14px; display: flex; flex-direction: column; gap: 7px; }
 .frow { display: grid; grid-template-columns: 170px 1fr 54px; gap: 10px; align-items: center; font-size: 12.5px; }
@@ -528,7 +546,7 @@ const STAGE_OF = { load_memory: "memory", parse_request: "parse", scrape_ubereat
 const STAGE_TITLE = { memory: "Recall memory", parse: "Understand", search: "Search both apps", match: "Match dishes", filter: "Filter", rank: "Rank",
   verify: "Verify cart", handoff: "Approve & hand off", learn: "Learn" };
 function stageOf(e) {
-  if (e.node === "filter_rank") return e.payload?.what === "ranked options" || e.payload?.what?.startsWith("reranker") ? "rank" : "filter";
+  if (e.node === "filter_rank") return /^(ranked options|reranker|showing the best option)/.test(e.payload?.what || "") ? "rank" : "filter";
   return STAGE_OF[e.node] || "other:" + e.node;
 }
 
@@ -706,34 +724,41 @@ const Stages = {
 
   match: {
     init(p) {
-      p.innerHTML = `<div class="cap"><h4>Is it the same dish?</h4><p>SIE R3 embeddings + price ratio + main ingredient pair dishes across apps</p></div>
-        <svg viewBox="0 0 900 360" width="100%" height="100%"></svg><div class="ticker"></div>`;
-      this.svg = p.querySelector("svg"); this.tk = p.querySelector(".ticker"); this.n = 0;
-      const rows = RESTAURANTS.map((r, i) => ({ ...r, y: 128 + i * 38, n: 0 }));
-      this.rows = Object.fromEntries(rows.map(r => [r.key, r]));
-      this.svg.innerHTML = `<text x="300" y="100" text-anchor="middle" font-size="12" font-weight="700" fill="var(--ue)">Uber Eats menu</text>
-        <text x="640" y="100" text-anchor="middle" font-size="12" font-weight="700" fill="var(--dd)">DoorDash menu</text>
-        <text x="860" y="62" text-anchor="end" font-size="30" font-weight="700" fill="var(--k-inference)" class="mc">0</text>
-        <text x="860" y="78" text-anchor="end" font-size="11" fill="var(--muted)">dishes on both apps</text>`
-        + rows.map(r => `<text x="190" y="${r.y + 4}" text-anchor="end" font-size="11.5" fill="var(--text)">${esc(r.name)}</text>
-          <rect x="210" y="${r.y - 6}" width="180" height="12" rx="6" fill="var(--ue)" opacity=".22"/>
-          <rect x="550" y="${r.y - 6}" width="180" height="12" rx="6" fill="var(--dd)" opacity=".22"/>
-          <text x="860" y="${r.y + 4}" text-anchor="end" font-size="12" font-weight="700" fill="var(--k-inference)" class="rc-${r.key}"></text>`).join("")
-        + `<g class="links"></g>`;
+      p.innerHTML = `<div class="cap"><h4>Same dish, two apps: who is cheaper?</h4><p>SIE R3 embeddings + price ratio + main ingredient pair each dish across Uber Eats and DoorDash</p></div>
+        <div class="mt"><div class="pairs"><div class="phead"><span style="color:var(--ue)">Uber Eats</span><span></span><span style="color:var(--dd)">DoorDash</span></div><div class="plist"></div></div>
+        <div class="scatter"><svg viewBox="0 0 300 300" width="100%" height="100%"></svg><div class="sc-legend"></div></div></div>`;
+      this.p = p; this.n = 0; this.w = { ue: 0, dd: 0, tie: 0 }; this.max = 40;
+      const svg = p.querySelector(".scatter svg");
+      svg.innerHTML = `<rect x="40" y="10" width="250" height="250" fill="var(--surface-2)" rx="6"/>
+        <line x1="40" y1="260" x2="290" y2="10" stroke="var(--muted)" stroke-dasharray="4 4"/>
+        <text x="165" y="292" text-anchor="middle" font-size="11" fill="var(--ue)" font-weight="700">Uber Eats price →</text>
+        <text x="12" y="135" text-anchor="middle" font-size="11" fill="var(--dd)" font-weight="700" transform="rotate(-90 12 135)">DoorDash price →</text>
+        <text x="250" y="40" text-anchor="end" font-size="10" fill="var(--muted)">DoorDash pricier</text>
+        <text x="60" y="250" font-size="10" fill="var(--muted)">Uber Eats pricier</text>
+        <text x="282" y="26" text-anchor="end" font-size="9.5" fill="var(--muted)" transform="rotate(-45 282 26)">same price</text>
+        <g class="dots"></g>`;
+      this.svg = svg;
     },
     event(e) {
       const pl = e.payload || {}; if (pl.what !== "same dish on both platforms") return;
-      this.n++; this.svg.querySelector(".mc").textContent = this.n;
-      const r = this.rows[rkey(pl.restaurant)] || Object.values(this.rows)[this.n % 5];
-      r.n++; this.svg.querySelector(".rc-" + r.key).textContent = r.n + " pairs";
-      const x1 = 215 + Math.random() * 170, x2 = 555 + Math.random() * 170, y = r.y;
-      const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
-      path.setAttribute("d", `M${x1},${y} C${x1 + 120},${y - 16} ${x2 - 120},${y + 16} ${x2},${y}`);
-      path.setAttribute("stroke", "var(--k-inference)"); path.setAttribute("fill", "none");
-      path.setAttribute("stroke-width", 1.1); path.setAttribute("opacity", (pl.confidence * 0.35).toFixed(2)); path.setAttribute("class", "mg-edge");
-      this.svg.querySelector(".links").appendChild(path);
-      const t = el(`<div class="tick"><span class="bar"><i style="width:${Math.round(pl.confidence * 100)}%"></i></span><span><b>${Math.round(pl.confidence * 100)}%</b> ${esc(pl.ubereats_item)} ≈ ${esc(pl.doordash_item)} · ${esc(pl.restaurant)}</span></div>`);
-      this.tk.appendChild(t); while (this.tk.children.length > 4) this.tk.firstChild.remove();
+      this.n++;
+      const ue = facts.price["ubereats|" + pl.ubereats_item]?.price, dd = facts.price["doordash|" + pl.doordash_item]?.price;
+      const win = ue == null || dd == null ? "" : Math.abs(ue - dd) < 0.005 ? "tie" : ue < dd ? "ue" : "dd";
+      if (win) this.w[win]++;
+      const row = el(`<div class="prow">
+          <div class="pd ${win === "ue" ? "win" : ""}"><b>${esc(pl.ubereats_item)}</b><span>${money(ue)}</span></div>
+          <div class="plink"><i style="--c:${Math.round(pl.confidence * 100)}%"></i><span>${Math.round(pl.confidence * 100)}%</span></div>
+          <div class="pd ${win === "dd" ? "win" : ""}"><b>${esc(pl.doordash_item)}</b><span>${money(dd)}</span></div>
+          <small>${esc(pl.restaurant)}${win === "tie" ? " · same price" : win ? ` · ${win === "ue" ? "Uber Eats" : "DoorDash"} saves ${money(Math.abs(ue - dd))}` : ""}</small></div>`);
+      const list = $(".plist", this.p); list.prepend(row); while (list.children.length > 7) list.lastChild.remove();
+      if (ue != null && dd != null) {
+        const sc = v => Math.min(v, this.max) / this.max * 250;
+        const c = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+        c.setAttribute("cx", 40 + sc(ue)); c.setAttribute("cy", 260 - sc(dd)); c.setAttribute("r", 4.5);
+        c.setAttribute("fill", win === "ue" ? "var(--ue)" : win === "dd" ? "var(--dd)" : "var(--k-inference)");
+        c.setAttribute("opacity", ".75"); c.setAttribute("class", "mg-node"); this.svg.querySelector(".dots").appendChild(c);
+      }
+      $(".sc-legend", this.p).innerHTML = `<b>${this.n}</b> pairs · <span style="color:var(--ue)">UE cheaper ${this.w.ue}</span> · <span style="color:var(--dd)">DD cheaper ${this.w.dd}</span> · same ${this.w.tie}`;
     },
   },
 
@@ -774,6 +799,8 @@ const Stages = {
           rows.appendChild(r); await sleep(40); r.classList.add("in"); r.querySelector(".sbar i").style.width = pct + "%"; await sleep(320);
         }
       }
+      if (/^showing the best option/.test(pl.what || "")) { this.mixNote = `↔ #3 is the best pick on ${PLAT[pl.platform] || pl.platform}, so you can compare both apps`; }
+      if (this.mixNote && $(".rows", this.p)?.children.length && !$(".mixnote", this.p)) $(".rows", this.p).insertAdjacentHTML("afterend", `<div class="fine mixnote" style="margin-top:-2px">${esc(this.mixNote)}</div>`);
       if (pl.summary && pl.writer) { const w = $(".why", this.p); w.textContent = "Why #1: " + pl.summary; w.classList.add("in"); }
     },
   },
@@ -924,27 +951,20 @@ async function runQuery(p, db, q, { user, orderBy, limit, post, postName }) {
 
 // ---------- 3D map (MapLibre + deck.gl arcs and columns)
 const HOME = { name: "You", pos: [-122.4194, 37.7749] };
-const RESTAURANTS = [
+let RESTAURANTS = [
   { key: "zyrestaurant", name: "Z & Y Restaurant", pos: [-122.40584, 37.79622] },
   { key: "zypekingduck", name: "Z & Y Peking Duck", pos: [-122.40470, 37.79560], cls: "below" },
   { key: "chinalive", name: "China Live", pos: [-122.40690, 37.79797] },
   { key: "spices", name: "Spices", pos: [-122.46395, 37.78428] },
   { key: "sichuanhome", name: "Sichuan Home", pos: [-122.47450, 37.78072] },
 ];
-// Other Chinese restaurants around SF, drawn as part of the sweep (their menus are not in this run's fixtures)
-const NEARBY = [[-122.4072,37.7941],[-122.4061,37.7952],[-122.4089,37.7969],[-122.4048,37.7935],[-122.4103,37.7990],
-  [-122.4194,37.7929],[-122.4316,37.7802],[-122.4587,37.7830],[-122.4781,37.7804],[-122.4862,37.7807],[-122.4930,37.7801],
-  [-122.4686,37.7637],[-122.4769,37.7643],[-122.4880,37.7537],[-122.4950,37.7435],[-122.4380,37.7615],[-122.4194,37.7599],
-  [-122.4148,37.7520],[-122.4089,37.7811],[-122.3988,37.7866],[-122.3929,37.7765],[-122.4030,37.7690],[-122.4255,37.8007],
-  [-122.4364,37.8014],[-122.4473,37.7882],[-122.4120,37.7375],[-122.4520,37.7326],[-122.4012,37.7210],[-122.3900,37.7480],
-  [-122.4650,37.7740],[-122.4280,37.7720],[-122.4440,37.7720]];
 function initMap(container) {
   return new Promise((resolve, reject) => {
     if (!window.maplibregl || !window.deck) return reject(new Error("map libraries not loaded"));
     try {
       const map = new maplibregl.Map({ container, attributionControl: { compact: true },
         style: isDark() ? "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json" : "https://basemaps.cartocdn.com/gl/positron-gl-style/style.json",
-        center: [-122.442, 37.787], zoom: 12.4, pitch: 58, bearing: -18, interactive: true });
+        center: [-122.436, 37.781], zoom: 12.35, pitch: 55, bearing: -12, interactive: true });
       const overlay = new deck.MapboxOverlay({ interleaved: false, layers: [] });
       map.addControl(overlay);
       map._overlay = overlay;
@@ -953,7 +973,7 @@ function initMap(container) {
         clearTimeout(t);
         const mk = (pos, html, cls) => { const d = el(`<div class="maplabel ${cls || ""}">${html}</div>`); new maplibregl.Marker({ element: d, anchor: "top" }).setLngLat(pos).addTo(map); return d; };
         mk(HOME.pos, "📍 You", "you");
-        map._labels = Object.fromEntries(RESTAURANTS.map(r => [r.key, mk(r.pos, `${esc(r.name)}<div class="c">waiting…</div>`, r.cls)]));
+        map._labels = Object.fromEntries(RESTAURANTS.filter(r => r.both !== false).map(r => [r.key, mk(r.pos, `${esc(r.name)}<div class="c">waiting…</div>`, r.key === "zypekingduck" ? "below" : "")]));
         new ResizeObserver(() => map.resize()).observe(container);
         map.resize();
         map.easeTo({ bearing: 12, duration: 14000, easing: t => t });
@@ -969,18 +989,17 @@ function updateMap(map, st, platforms) {
   RESTAURANTS.forEach(r => {
     const c = facts?.counts[r.key] || {};
     platforms.forEach(pl => {
-      arcs.push({ from: HOME.pos, to: r.pos, color: pl === "ubereats" ? UE : DD, h: pl === "ubereats" ? 0.55 : 0.9 });
+      if (!(c[pl] > 0)) return;
+      arcs.push({ from: HOME.pos, to: r.pos, color: pl === "ubereats" ? UE : DD, h: pl === "ubereats" ? 0.55 : 0.9, thin: r.both === false });
       const off = pl === "ubereats" ? -0.0011 : 0.0011;
       cols.push({ pos: [r.pos[0] + off, r.pos[1]], n: c[pl] || 0, color: pl === "ubereats" ? UE : DD });
     });
     const lab = map._labels?.[r.key];
     if (lab) lab.querySelector(".c").innerHTML = `<span style="color:var(--ue)">UE ${c.ubereats || 0}</span> · <span style="color:var(--dd)">DD ${c.doordash || 0}</span>`;
   });
-  const n = Object.values(facts?.counts || {}).reduce((a, c) => a + (c.ubereats || 0) + (c.doordash || 0), 0);
-  const swept = NEARBY.slice(0, Math.min(NEARBY.length, Math.ceil(n / 12)));
-  swept.forEach((pos, i) => arcs.push({ from: HOME.pos, to: pos, color: i % 2 ? DD : UE, h: 0.35 + (i % 5) * 0.12, thin: true }));
   map._overlay.setProps({ layers: [
-    new deck.ScatterplotLayer({ id: "nearby", data: swept, getPosition: d => d, getRadius: 55, getFillColor: [120, 120, 120, 170], radiusMinPixels: 3 }),
+    new deck.TextLayer({ id: "names", data: RESTAURANTS.filter(r => r.both === false && (facts?.counts[r.key]?.doordash || 0) > 0), getPosition: d => d.pos,
+      getText: d => d.name, getSize: 11, getColor: isDark() ? [230, 230, 230, 220] : [40, 40, 40, 220], getPixelOffset: [0, 14], fontFamily: "Inter, sans-serif", characterSet: "auto" }),
     new deck.ArcLayer({ id: "arcs", data: arcs, getSourcePosition: d => d.from, getTargetPosition: d => d.to, getSourceColor: d => [...d.color, 90],
       getTargetColor: d => [...d.color, d.thin ? 150 : 255], getWidth: d => d.thin ? 1.5 : 3.5, getHeight: d => d.h, greatCircle: false }),
     new deck.ColumnLayer({ id: "cols", data: cols, getPosition: d => d.pos, getElevation: d => d.n * 9, getFillColor: d => [...d.color, 230],
@@ -1132,7 +1151,7 @@ function renderOptions(ranked) {
     const card = el(`<div class="card ${i === 0 ? "best" : ""}" style="animation-delay:${i * .12}s">
       <div class="top"><span class="plat ${esc(o.source)}">${esc(PLAT[o.source] || o.source)}</span>
         ${o.eta_min ? `<span class="fine">${o.eta_min} min</span>` : ""}
-        ${i === 0 ? `<span class="badge-best">Best pick</span>` : ""}</div>
+        ${i === 0 ? `<span class="badge-best">Best pick</span>` : o.source !== ranked[0].offer.source && !ranked.slice(1, i).some(x => x.offer.source === o.source) ? `<span class="badge-best" style="color:var(--${o.source === "doordash" ? "dd" : "ue"})">Best on ${esc(PLAT[o.source])}</span>` : ""}</div>
       <h3>${esc(o.item)}</h3>
       <div class="rest">${esc(o.restaurant)}</div>
       <div class="price">${money(total)} <small>${people > 1 ? `food for ${people}` : "food"}${o.fees ? ` + ${money(o.fees)} fees` : " · fees shown at checkout"}</small></div>
@@ -1216,6 +1235,7 @@ $("#newChat").onclick = () => location.reload();
 $("#auditToggle").onclick = () => $("#audit").classList.toggle("open");
 
 let STATSIG = false;
+fetch(API + "/places").then(r => r.json()).then(d => { if (d.places?.length) RESTAURANTS = d.places.map(p => ({ key: p.key, name: p.name, pos: [p.lng, p.lat], both: p.platforms.length > 1, platforms: p.platforms })); }).catch(() => {});
 fetch(API + "/health").then(r => r.json()).then(h => { setConn(true); STATSIG = !!(h.statsig?.installed && !h.statsig?.error); }).catch(() => setConn(false));
 </script>
 </body>

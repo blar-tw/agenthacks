@@ -70,7 +70,38 @@ def seed() -> dict:
         c.write_preference(user, p)
     for user, i in inters:
         c.write_interaction(user, i)
-    return {"users": len(USERS), "orders": len(orders), "preferences": len(prefs), "interactions": len(inters)}
+    d_orders, d_inters = demo_history()
+    for o in d_orders:
+        c.write_order("demo", o)
+    for i in d_inters:
+        c.write_interaction("demo", i)
+    return {"users": len(USERS), "orders": len(orders), "preferences": len(prefs), "interactions": len(inters),
+            "demo_orders": len(d_orders), "demo_interactions": len(d_inters)}
+
+
+DEMO_DISHES = [("Sichuan Garden", "Dan Dan Noodles"), ("Noodle House", "Spicy Wonton Noodle Soup"),
+               ("Spicy Village", "Chongqing Spicy Noodles"), ("Z & Y Restaurant", "Tan Tan Noodle"),
+               ("Sichuan Home", "Ma-po Tofu"), ("Spices", "Hot & Sour Soup"), ("Mama Lin's Dumplings", "Pork Soup Dumplings"),
+               ("China Live", "Kung Pao Chicken"), ("Z & Y Restaurant", "Chongqing Chicken"), ("Noodle House", "Beef Noodle Soup")]
+
+
+def demo_history(seed: int = 11) -> tuple[list[dict], list[dict]]:
+    """Older history for the demo user (Jun-Sep 2026), so the seeded October orders stay the newest five
+    that load_memory's LIMIT 5 picks. IDs start with ord-demo-sample- / int-demo-sample-."""
+    rnd = random.Random(seed)
+    base = datetime(2026, 6, 1, 19, 0, tzinfo=timezone.utc)
+    orders = []
+    for k in range(24):
+        rest, dish = rnd.choice(DEMO_DISHES)
+        orders.append({"order_id": f"ord-demo-sample-{k + 1:02d}", "platform": rnd.choice(["ubereats", "doordash"]),
+                       "restaurant": rest, "items": [dish], "cuisine": "chinese", "price_paid": round(rnd.uniform(22, 38), 2),
+                       "fees": round(rnd.uniform(0.99, 3.99), 2), "eta_min": rnd.randint(24, 48), "rating": rnd.randint(3, 5),
+                       "ordered_at": (base + timedelta(days=k * 4 + rnd.randint(0, 2))).isoformat()})
+    inters = [{"interaction_id": f"int-demo-sample-{k + 1}", "shown": [], "rejected": [], "rejected_restaurants": [r],
+               "reason": why, "at": (base + timedelta(days=10 + k * 25)).isoformat()}
+              for k, (r, why) in enumerate([("Golden Wok", "too greasy"), ("Lucky Panda", "too slow"),
+                                            ("Golden Wok", "too oily again"), ("Dragon Express", "too expensive")])]
+    return orders, inters
 
 
 def remove() -> None:
@@ -80,6 +111,8 @@ def remove() -> None:
     marks = ",".join(["%s"] * len(USERS))
     for table in ("orders", "preferences", "interactions", "users"):
         s._exec(f"DELETE FROM {table} WHERE user_id IN ({marks})", tuple(USERS))
+    s._exec("DELETE FROM orders WHERE order_id LIKE 'ord-demo-sample-%%'")
+    s._exec("DELETE FROM interactions WHERE interaction_id LIKE 'int-demo-sample-%%'")
 
 
 if __name__ == "__main__":

@@ -11,6 +11,12 @@
     "actor": "haketa/doordash-scraper",
     "actor_run_id": "mrRGtDbt9JqZEn0lc",
     "scraped_at": "2026-11-20T20:52:04.711066+00:00",
-    "items": 5
+    "items": 24,
+    "extra_location_run": {
+      "actor_run_id": "tWpFYgjwdgs4BrwsT",
+      "scraped_at": "2026-11-20T23:05:03.183619+00:00",
+      "location": "Chinatown, San Francisco, CA",
+      "stores_added": 19
+    }
   }
 }

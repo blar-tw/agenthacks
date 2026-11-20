@@ -223,6 +223,19 @@ def match_offers(state: AgentState) -> dict[str, Any]:
 
 # ---------------------------------------------------------------- filter_rank
 
+def mix_platforms(ranked: list, k: int = 3) -> tuple[list, Any]:
+    """If the top k all come from one app and the other app has an option that passed every rule,
+    put the best-ranked one of those at position k, so the user always sees both apps compared."""
+    top = ranked[:k]
+    if len(top) < k or len({r.offer.source for r in top}) > 1:
+        return ranked, None
+    j = next((i for i in range(k, len(ranked)) if ranked[i].offer.source != top[0].offer.source), None)
+    if j is None:
+        return ranked, None
+    pick = ranked[j]
+    return ranked[:k - 1] + [pick] + [r for i, r in enumerate(ranked) if i >= k - 1 and i != j], pick
+
+
 def filter_rank(state: AgentState, top_k: int = 10) -> dict[str, Any]:
     run, cons, mem = _run(state), _constraints(state), state.get("memory") or {}
     offers = _offers(state)
@@ -250,7 +263,14 @@ def filter_rank(state: AgentState, top_k: int = 10) -> dict[str, Any]:
             except Exception as exc:
                 c.audit("inference", {"what": "reranker failed; price-only ranker used",
                                       "error": type(exc).__name__}, all_ev, run_id=run, node="filter_rank")
+    mixed = None
+    if used == "reranker":
+        ranked, mixed = mix_platforms(ranked, 3)
     ranked = ranked[:top_k]
+    if mixed:
+        c.audit("inference", {"what": "showing the best option from the other platform too", "platform": mixed.offer.source,
+                              "item": mixed.offer.item, "note": "the top 3 were all on one app; #3 is the best-ranked pick on the other"},
+                [mixed.offer.evidence_id] if mixed.offer.evidence_id else all_ev, run_id=run, node="filter_rank")
     c.audit("inference", {"what": "ranked options", "ranker": used, "requested_ranker": ranker,
                           "top": [{"offer_id": r.offer.offer_id, "item": r.offer.item, "restaurant": r.offer.restaurant,
                                    "platform": r.offer.source, "est_total": est_total(r.offer, cons.people),
