@@ -17,3 +17,6 @@ playwright-profile/
 # Cognee local state (P2)
 .cognee_system/
 .data_storage/
+
+# Browser checks
+.playwright-mcp/
