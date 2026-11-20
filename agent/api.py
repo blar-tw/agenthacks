@@ -12,6 +12,7 @@ in-memory checkpointer loses paused runs.
 from __future__ import annotations
 
 import contextvars
+import hashlib
 import threading
 import uuid
 from pathlib import Path
@@ -234,7 +235,10 @@ def memory_tables(user_id: str, limit: int = 60) -> dict:
     for t, sql in _MEMORY_TABLES.items():
         try:
             cols = "pref_id, user_id, text, kind, source, confidence, term, episode_ids, created_at, vec" if t == "preferences" else "*"
-            rows = rows_of(f"SELECT {cols} FROM {t} LIMIT %s", (limit,))
+            mine = rows_of(f"SELECT {cols} FROM {t} WHERE user_id=%s", (user_id,))
+            others = rows_of(f"SELECT {cols} FROM {t} WHERE user_id<>%s LIMIT %s", (user_id, limit))
+            key = next(iter(mine[0] if mine else others[0] if others else {"x": 0}))
+            rows = sorted(mine + others, key=lambda r: hashlib.md5(str(r.get(key)).encode()).hexdigest())
             out["queries"].append({"table": t, "sql": sql.replace("%s", f"'{user_id}'", 1).replace("%s", "", 1), "rows": rows})
         except Exception as e:
             out["queries"].append({"table": t, "sql": sql, "rows": [], "error": type(e).__name__})
