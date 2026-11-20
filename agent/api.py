@@ -26,6 +26,12 @@ load_dotenv()
 from agent.graph import NODE_SOURCES, chat, get_graph  # noqa: E402
 from contracts import get_audit, read_orders  # noqa: E402
 
+try:   # P3's Statsig ranker flag and event sink; without a key the agent keeps its defaults
+    from sim_ui import analytics  # noqa: E402
+    analytics.install()
+except Exception:  # analytics must never stop the API from starting
+    analytics = None
+
 UI_PAGE = Path(__file__).resolve().parent.parent / "sim_ui" / "static" / "index.html"
 
 app = FastAPI(title="MealMatch")
@@ -112,7 +118,8 @@ def orders(user_id: str) -> dict:
 @app.get("/health")
 def health() -> dict:
     get_graph()
-    return {"ok": True, "node_sources": NODE_SOURCES}
+    statsig = dict(analytics.STATE) if analytics else {"installed": False}
+    return {"ok": True, "node_sources": NODE_SOURCES, "statsig": statsig}
 
 
 @app.get("/", include_in_schema=False)

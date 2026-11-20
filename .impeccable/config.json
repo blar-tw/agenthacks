@@ -1,0 +1,14 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "overused-font",
+        "value": "inter",
+        "createdAt": "2026-11-20T21:58:21.410Z",
+        "reason": "user confirmed: 'Leave it for now' (2026-11-20); font is P3's choice, not changed before the 14:45 freeze"
+      }
+    ]
+  }
+}

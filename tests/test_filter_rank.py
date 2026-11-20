@@ -53,6 +53,17 @@ def test_matched_pair_keeps_the_cheaper_platform(mem):
     assert sum(1 for r in ranked if r.match_id == soup.match_id) == 1
 
 
+def test_price_tie_shows_the_better_documented_platform():
+    from data.rank import filter_offers
+    ue = c.Offer(offer_id="ue1", restaurant="Z", item="Dan Dan Noodles", price=12.95, source="ubereats")
+    dd = c.Offer(offer_id="dd1", restaurant="Z", restaurant_address="655 Jackson St", item="Dan Dan Noodles",
+                 price=12.95, source="doordash")
+    m = c.Match(offer_ids=["ue1", "dd1"], confidence=0.9)
+    for order in ([ue, dd], [dd, ue]):   # the scrape order must not decide
+        (kept,) = filter_offers(order, c.Constraints(dish_query="noodles"), None, [m], []).kept
+        assert kept.offer.source == "doordash" and kept.match_id == m.match_id
+
+
 def test_price_ranker_is_cheapest_first(mem):
     out = nodes.filter_rank(_state("r8", ranker="price"))
     ranked = _ranked(out)

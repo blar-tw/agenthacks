@@ -1,0 +1,83 @@
+schemaVersion: 1
+module: ./behavior.mjs
+manifest:
+  schemaVersion: 1
+  id: shop
+  version: 1.0.0
+  engine: ">=0.1.0 <0.2.0"
+  capabilities:
+    - state.read
+    - state.write
+  state:
+    - namespace: pricing
+      schema:
+        type: object
+        required: [fees, multiplier]
+        properties:
+          fees: {type: number}
+          multiplier: {type: number}
+    - namespace: carts
+      schema: {type: object}
+    - namespace: orders
+      schema: {type: object}
+    - namespace: observations
+      schema: {type: object}
+  operations:
+    - id: cart.quote
+      inputSchema:
+        type: object
+        required: [cart_id, platform, restaurant, lines, subtotal]
+        properties:
+          cart_id: {type: string}
+          platform: {type: string}
+          restaurant: {type: string}
+          subtotal: {type: number}
+          lines:
+            type: array
+            items:
+              type: object
+              required: [item, qty, unit_price]
+              properties:
+                item: {type: string}
+                qty: {type: integer}
+                unit_price: {type: number}
+      outputSchema:
+        type: object
+        required: [cart_id, subtotal, fees, total, address_label]
+        properties:
+          cart_id: {type: string}
+          subtotal: {type: number}
+          fees: {type: number}
+          total: {type: number}
+          address_label: {type: string}
+      idempotency: required
+      fidelity: stateful
+    - id: order.submit
+      inputSchema:
+        type: object
+        required: [cart_id, platform, total]
+        properties:
+          cart_id: {type: string}
+          platform: {type: string}
+          total: {type: number}
+          deep_link: {type: string}
+      outputSchema:
+        type: object
+        required: [handoff_url]
+        properties:
+          handoff_url: {type: string}
+      idempotency: required
+      fidelity: stateful
+    - id: drill.observe
+      inputSchema:
+        type: object
+        required: [observations]
+        properties:
+          observations: {type: object}
+      outputSchema:
+        type: object
+        required: [recorded]
+        properties:
+          recorded: {type: boolean}
+      idempotency: required
+      fidelity: stateful

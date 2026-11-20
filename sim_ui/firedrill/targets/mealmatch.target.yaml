@@ -1,0 +1,6 @@
+schemaVersion: 1
+target:
+  id: mealmatch
+  kind: external
+  bindings: [direct]
+  timeoutMs: 300000

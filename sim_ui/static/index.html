@@ -214,7 +214,11 @@ const short = id => (id || "").slice(-6);
 function el(html) { const t = document.createElement("template"); t.innerHTML = html.trim(); return t.content.firstElementChild; }
 function push(node) { $("#empty")?.remove(); feed.appendChild(node); threadEl.scrollTop = threadEl.scrollHeight; return node; }
 function say(role, text) { return push(el(`<div class="msg ${role}">${esc(text)}</div>`)); }
-function cites(ids) { return (ids || []).filter(Boolean).map(id => `<button class="cite mono" data-ev="${esc(id)}" title="Show evidence ${esc(id)}">${esc(short(id))}</button>`).join(""); }
+function cites(ids, max = 6) {
+  const all = (ids || []).filter(Boolean);
+  const chips = all.slice(0, max).map(id => `<button class="cite mono" data-ev="${esc(id)}" title="Show evidence ${esc(id)}">${esc(short(id))}</button>`).join("");
+  return chips + (all.length > max ? `<span class="fine"> +${all.length - max} more</span>` : "");   // real menus: 100+ removed offers
+}
 
 async function call(body) {
   if (busy) return;
