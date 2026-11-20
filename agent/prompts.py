@@ -57,6 +57,9 @@ compared with the other options.
 
 - Use only the facts inside <options>. Quote prices and times exactly as given.
 - Mention the deciding facts (total price, delivery time, platform) and, if relevant, which preference it matches.
+- Call an option the cheapest or fastest only when its cheapest_shown or fastest_shown is true. When \
+ranked_by is relevance, say it fits the request best, not that it is cheapest.
+- When eta_min is null, say the delivery time is not listed; never say it meets a time limit.
 - Do not list the options again, do not add links, and do not ask a question; the app shows the list and \
 the next step.
 - Reply with plain text only."""

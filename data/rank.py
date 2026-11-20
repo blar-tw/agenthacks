@@ -55,6 +55,23 @@ _CUISINES = {"chinese", "thai", "indian", "mexican", "italian", "japanese", "kor
              "french", "greek", "mediterranean", "sichuan", "szechuan", "cantonese", "hunan"}
 
 
+# Real menus list drinks, plain rice and condiments next to meals; the cheapest "spicy" item on a
+# real menu was "House Hot Mustard 2oz". These are never the answer unless the request names them.
+_ADDON = re.compile(r"\b\d+\s?oz\b|^side\b|\bside of\b|\badd[- ]?on\b|^extra\b", re.I)
+_DISH_LINK = re.compile(r"\b(?:in|with|wit|and|w)\b|w/|w\.", re.I)   # "Eggplant in Garlic Sauce" is a dish
+_DRINK_OR_PLAIN = re.compile(r"^(?:diet |house )?(?:coke|coca[- ]?cola|sprite|fanta|7[- ]?up|pepsi|soda|bottled water|water"
+                             r"|.*\btea|.*\bjuice|.*\bmilkshake|.*\blemonade|soy milk|(?:steamed )?(?:white |brown |jasmine )*rice)$",
+                             re.I)
+
+
+def is_side(offer: Offer) -> bool:
+    """A drink, plain rice, sauce or add-on rather than a dish (names are matched without the Chinese text)."""
+    name = re.sub(r"\([^)]*\)|[^\x00-\x7f]", " ", offer.item)
+    name = re.sub(r"\s+", " ", name).strip()
+    just_sauce = bool(re.search(r"\b(?:sauce|dressing)$", name, re.I)) and not _DISH_LINK.search(name)
+    return bool(_ADDON.search(name) or _DRINK_OR_PLAIN.match(name) or just_sauce)
+
+
 def _words(text: str) -> list[str]:
     return sorted({_singular(w) for w in re.findall(r"[a-z]+", text.lower()) if w not in _STOP and len(w) > 2})
 
@@ -144,6 +161,13 @@ def filter_offers(offers: list[Offer], c: Constraints, memory: dict | None, matc
         removed += [{"offer_id": o.offer_id, "reason": f"not what was asked for ({', '.join(words)})"}
                     for o in allowed if o.offer_id not in keep]
         allowed = on_topic
+
+    asked = set(_words(c.dish_query))
+    meals = [o for o in allowed if not is_side(o) or asked & set(_words(o.item))]
+    if meals:   # never empty the list just because everything left is a side
+        keep = {o.offer_id for o in meals}
+        removed += [{"offer_id": o.offer_id, "reason": "side, drink or add-on"} for o in allowed if o.offer_id not in keep]
+        allowed = meals
 
     for o in allowed:
         total = est_total(o, c.people)
