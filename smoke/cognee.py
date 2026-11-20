@@ -1,5 +1,8 @@
-"""Cognee: remember, then recall. Reports whether SIE works as Cognee's LLM, or the
-OpenAI fallback is needed. Needs the optional dependency: uv sync --extra memory
+"""Cognee Cloud: remember, then recall (Brief 12, open item 2).
+
+On Cognee Cloud the graph is built remotely with Cognee's own hosted models, so the local
+SIE/OpenAI LLM settings only matter for local (non-Cloud) mode. This check reports which mode ran.
+Needs the optional dependency: uv sync --extra memory
 """
 import asyncio
 import importlib.util
@@ -20,44 +23,35 @@ from data import distill  # noqa: E402
 s = Smoke("cognee")
 
 
-async def roundtrip(tag: str) -> str:
-    import cognee
-    if os.environ.get("COGNEE_API_KEY"):
-        await cognee.serve(url=os.environ.get("COGNEE_SERVICE_URL") or None, api_key=os.environ["COGNEE_API_KEY"])
-    await cognee.remember(f"[episode smoke-{tag}] The smoke-test user {tag} loves spicy dan dan noodles.")
-    res = await cognee.recall(f"What does the smoke-test user {tag} love to eat?")
-    return str(res)
-
-
-def attempt(mode: str) -> bool:
-    used = distill.configure_cognee(use_sie=(mode == "sie"))
-    if used != mode:
-        s.info(f"{mode}: not configured (missing key)")
-        return False
-    tag = uuid.uuid4().hex[:6]
-    try:
-        out = asyncio.run(roundtrip(tag))
-    except Exception as exc:
-        s.info(f"{mode}: {type(exc).__name__}: {str(exc)[:200]}")
-        return False
-    if "noodle" in out.lower():
-        s.ok(f"remember -> recall works with {mode.upper()} as Cognee's LLM")
-        return True
-    s.info(f"{mode}: recall did not mention noodles: {out[:160]!r}")
-    return False
+async def roundtrip(tag: str) -> list[str]:
+    await distill.cognee_remember([f"[episode smoke-{tag}] The smoke-test user {tag} loves spicy dan dan noodles."],
+                                  dataset="mealmatch_smoke")
+    out: list[str] = []
+    for _ in range(9):   # Cloud processes remember() in the background: ask again until it knows
+        out = await distill.cognee_recall(f"What does the smoke-test user {tag} love to eat?",
+                                          dataset="mealmatch_smoke", wait_s=90)
+        if any("noodle" in t.lower() for t in out):
+            break
+        await asyncio.sleep(10)
+    return out
 
 
 if importlib.util.find_spec("cognee") is None:
     s.fail("cognee is not installed (run: uv sync --extra memory)")
 elif s.need("COGNEE_API_KEY"):
-    # OpenAI is the user's own paid key: try it only when asked (--allow-openai).
-    if attempt("sie"):
-        s.info("SIE works as Cognee's LLM: keep DISTILLER=cognee, no OpenAI key needed")
-    elif "--allow-openai" not in sys.argv:
-        s.fail("SIE did not work as Cognee's LLM. OpenAI fallback not tried (needs --allow-openai); "
-               "or use DISTILLER=counting (Brief 9.6 cut 1)")
-    elif attempt("openai"):
-        s.info("SIE does NOT work as Cognee's LLM; OpenAI fallback works (Brief 12, open item 2)")
-    else:
-        s.fail("neither SIE nor OpenAI worked for Cognee; use DISTILLER=counting (Brief 9.6 cut 1)")
+    cloud = bool(os.environ.get("COGNEE_SERVICE_URL"))
+    if not cloud:
+        s.info("COGNEE_SERVICE_URL is not set: running Cognee locally with SIE as its LLM")
+    # OpenAI is the user's own paid key: only local mode could need it, and only with --allow-openai.
+    os.environ["MEALMATCH_COGNEE_MODE"] = "openai" if "--allow-openai" in sys.argv else "sie"
+    tag = uuid.uuid4().hex[:6]
+    try:
+        out = asyncio.run(roundtrip(tag))
+        if any("noodle" in t.lower() for t in out):
+            s.ok(f"remember -> recall on {'Cognee Cloud (hosted models)' if cloud else 'local Cognee + SIE'}: {out[0][:80]!r}")
+        else:
+            s.fail(f"recall did not mention noodles: {out[:2]!r}")
+    except Exception as exc:
+        s.error("remember/recall", exc)
+        s.info("fallback: DISTILLER=counting (Brief 9.6 cut 1)")
 s.done()

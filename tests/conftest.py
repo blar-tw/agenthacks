@@ -1,15 +1,28 @@
-"""Offline test setup for P2: in-memory store, fixture tools, and a fake SIE that needs no key."""
+"""Offline test setup for P1 + P2: no model, no network.
+
+One autouse fixture gives every test a fresh P2MemoryStore (a contracts.InMemoryStore),
+P2's fixture tools, a fake SIE, no LLM, and a fresh graph.
+"""
 from __future__ import annotations
 
 import hashlib
 import math
+import os
 import re
 from pathlib import Path
 
 import pytest
 
-import contracts as c
-from data import nodes, sie, store, tools  # noqa: F401  (importing nodes registers P2's tools)
+os.environ["LLM_PROVIDER"] = "none"  # tests never call a model or the network
+os.environ["TOOL_MODE"] = "fixtures"
+os.environ["LANGSMITH_TRACING"] = "false"  # no trace uploads from tests
+
+import contracts  # noqa: E402
+import contracts as c  # noqa: E402
+from agent import graph as graph_mod  # noqa: E402
+from agent import llm  # noqa: E402
+from data import nodes, sie, store  # noqa: E402  (importing nodes registers P2's tools)
+from data import tools as data_tools  # noqa: E402
 
 _SYN = {"szechuan": "sichuan", "hot": "spicy", "mala": "spicy", "chili": "spicy", "noodles": "noodle",
         "w": "", "with": ""}
@@ -52,10 +65,13 @@ def offline(monkeypatch):
     monkeypatch.setenv("MEMORY_BACKEND", "memory")
     mem = store.P2MemoryStore()
     c.set_store(mem)
-    tools.register()
+    data_tools.register()
     c.reset_tools()
+    c.EVENTS.clear()
     sie.set_sie(FakeSIE())
     store._BOOKMARKS.clear()
+    llm.set_llm(None)
+    graph_mod.reset_graph()
     yield mem
     sie.set_sie(None)
     c.reset_tools()
@@ -69,6 +85,14 @@ def mem():
 @pytest.fixture
 def fake_sie():
     return sie.get_sie()
+
+
+@pytest.fixture
+def tools():
+    return contracts.get_tools("fixtures")
+
+
+DEMO = graph_mod.DEMO_REQUEST
 
 
 def scraped_state(run_id: str, **extra) -> dict:

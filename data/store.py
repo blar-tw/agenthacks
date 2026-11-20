@@ -77,7 +77,7 @@ class P2MemoryStore(c.InMemoryStore):
     def write_matches(self, run_id: str, matches: Iterable[dict]) -> None:
         self.match_rows.extend({**m, "run_id": run_id} for m in matches)
 
-    def set_snapshot_vectors(self, vectors: dict[str, list[float]]) -> None:
+    def set_snapshot_vectors(self, vectors: dict[str, list[float]], run_id: str | None = None) -> None:
         self.vectors.update(vectors)
 
 
@@ -122,6 +122,34 @@ def create_tables(conn) -> list[str]:
         for stmt in schema_statements():
             cur.execute(stmt)
     return list(TABLES)
+
+
+def migrate(conn) -> list[str]:
+    """Bring tables created by an older schema up to date. Copies data; never drops rows."""
+    done = []
+    with conn.cursor() as cur:
+        # price_snapshots: PRIMARY KEY offer_id -> (offer_id, run_id), for stable offer ids.
+        cur.execute("SELECT COLUMN_NAME FROM information_schema.KEY_COLUMN_USAGE WHERE TABLE_SCHEMA = DATABASE() "
+                    "AND TABLE_NAME = 'price_snapshots' AND CONSTRAINT_NAME = 'PRIMARY'")
+        pk = [r["COLUMN_NAME"] for r in cur.fetchall()]
+        if pk == ["offer_id"]:
+            stmt = next(s for s in schema_statements() if "price_snapshots" in s.split("(")[0])
+            cur.execute("DROP TABLE IF EXISTS price_snapshots_v2")
+            cur.execute(stmt.replace("price_snapshots", "price_snapshots_v2", 1))
+            cols = ("offer_id, source, restaurant, restaurant_address, item, description, price, fees, eta_min, url, "
+                    "scraped_at, evidence_id, dish_vec")
+            cur.execute(f"INSERT INTO price_snapshots_v2 (run_id, {cols}) "
+                        f"SELECT COALESCE(run_id, ''), {cols} FROM price_snapshots")
+            cur.execute("DROP TABLE price_snapshots")
+            cur.execute("ALTER TABLE price_snapshots_v2 RENAME TO price_snapshots")
+            done.append("price_snapshots: primary key (offer_id) -> (offer_id, run_id), rows copied")
+        cur.execute("SELECT CHARACTER_MAXIMUM_LENGTH AS n FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() "
+                    "AND TABLE_NAME = 'interactions' AND COLUMN_NAME = 'selected'")
+        row = cur.fetchone()
+        if row and (row["n"] or 0) < 255:
+            cur.execute("ALTER TABLE interactions MODIFY selected VARCHAR(255)")
+            done.append("interactions.selected: VARCHAR(255)")
+    return done
 
 
 def ensure_vector_dims(conn) -> list[str]:
@@ -275,9 +303,10 @@ class SingleStoreStore:
                    [(m["match_id"], run_id, _j(m["offer_ids"]), m["confidence"], m.get("method"),
                      _j(m.get("evidence_ids", [])), _naive(c.now())) for m in matches], many=True)
 
-    def set_snapshot_vectors(self, vectors: dict[str, list[float]]) -> None:
+    def set_snapshot_vectors(self, vectors: dict[str, list[float]], run_id: str | None = None) -> None:
         """One UPDATE ... CASE per 100 rows: pymysql's executemany batches only INSERT/REPLACE,
-        so a plain UPDATE per row cost ~80 ms each (617 rows: 50 s)."""
+        so a plain UPDATE per row cost ~80 ms each (617 rows: 50 s). Only this run's snapshots."""
+        run = run_id or c._AUDIT_CTX.get()[0]
         items = list(vectors.items())
         for i in range(0, len(items), 100):
             chunk = items[i:i + 100]
@@ -285,10 +314,10 @@ class SingleStoreStore:
             args: list = []
             for k, v in chunk:
                 args += [k, json.dumps([round(float(x), 6) for x in v])]
-            args += [k for k, _ in chunk]
+            args += [k for k, _ in chunk] + [run]
             marks = ",".join(["%s"] * len(chunk))
             self._exec(f"UPDATE price_snapshots SET dish_vec = CASE offer_id {cases} END "
-                       f"WHERE offer_id IN ({marks})", args)
+                       f"WHERE offer_id IN ({marks}) AND run_id = %s", args)
 
 
 # ---------------------------------------------------------------- helpers (work on any MemoryStore)
@@ -338,10 +367,10 @@ def write_matches(run_id: str, matches: list[dict]) -> None:
         s.write_matches(run_id, matches)
 
 
-def set_snapshot_vectors(vectors: dict[str, list[float]]) -> None:
+def set_snapshot_vectors(vectors: dict[str, list[float]], run_id: str | None = None) -> None:
     s = c.get_store()
     if vectors and hasattr(s, "set_snapshot_vectors"):
-        s.set_snapshot_vectors(vectors)
+        s.set_snapshot_vectors(vectors, run_id)
 
 
 def install() -> None:

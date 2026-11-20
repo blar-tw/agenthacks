@@ -191,7 +191,7 @@ def match_offers(state: AgentState) -> dict[str, Any]:
             vecs = dict(zip([o.offer_id for o in offers],
                             sie.embed([dish_text(o) for o in offers], max_wait_s=NODE_SIE_WAIT_S)))
             matches, method = _match(offers, sie, vecs)
-            store.set_snapshot_vectors(vecs)
+            store.set_snapshot_vectors(vecs, run)
         except Exception as exc:
             note = f"SIE embeddings failed ({type(exc).__name__}); used fuzzy names"
     else:
@@ -206,7 +206,7 @@ def match_offers(state: AgentState) -> dict[str, Any]:
          m.evidence_ids, None) for a, b, m in pairs], run_id=run, node="match_offers")
     if note:
         c.audit("inference", {"what": "matching fallback", "note": note, "matches": len(matches)},
-                run_id=run, node="match_offers")
+                [o.evidence_id for o in offers if o.evidence_id], run_id=run, node="match_offers")
     store.write_matches(run, [{**m.model_dump(), "method": method} for m in matches])
     return {"matches": [m.model_dump() for m in matches]}
 
@@ -221,8 +221,10 @@ def filter_rank(state: AgentState, top_k: int = 10) -> dict[str, Any]:
     ranker = state.get("ranker") or config.ranker_name()
     fr = filter_offers(offers, cons, mem, matches, rejected)
     ev_of = {o.offer_id: o.evidence_id for o in offers}
+    all_ev = [e for e in ev_of.values() if e]   # every inference cites evidence, even when a list is empty
     c.audit("inference", {"what": "removed options that break a rule", "removed": fr.removed, "kept": len(fr.kept)},
-            [ev_of[x["offer_id"]] for x in fr.removed if ev_of.get(x["offer_id"])], run_id=run, node="filter_rank")
+            [ev_of[x["offer_id"]] for x in fr.removed if ev_of.get(x["offer_id"])] or all_ev,
+            run_id=run, node="filter_rank")
 
     bad = {o.restaurant for o in offers if o.offer_id in rejected}   # rejected this session
     used = "price"
@@ -230,22 +232,26 @@ def filter_rank(state: AgentState, top_k: int = 10) -> dict[str, Any]:
     if ranker == "reranker":
         scorer = _sie_or_none()
         if scorer is None:
-            c.audit("inference", {"what": "reranker not configured; price-only ranker used"}, run_id=run,
-                    node="filter_rank")
+            c.audit("inference", {"what": "reranker not configured; price-only ranker used"}, all_ev,
+                    run_id=run, node="filter_rank")
         else:
             try:
                 ranked, used = rank_reranker(fr.kept, cons, mem, scorer, bad, max_wait_s=NODE_SIE_WAIT_S), "reranker"
             except Exception as exc:
                 c.audit("inference", {"what": "reranker failed; price-only ranker used",
-                                      "error": type(exc).__name__}, run_id=run, node="filter_rank")
+                                      "error": type(exc).__name__}, all_ev, run_id=run, node="filter_rank")
     ranked = ranked[:top_k]
     c.audit("inference", {"what": "ranked options", "ranker": used, "requested_ranker": ranker,
                           "top": [{"offer_id": r.offer.offer_id, "item": r.offer.item, "restaurant": r.offer.restaurant,
                                    "platform": r.offer.source, "est_total": est_total(r.offer, cons.people),
                                    "score": r.score, "match_id": r.match_id} for r in ranked[:5]]},
-            [r.offer.evidence_id for r in ranked[:5] if r.offer.evidence_id], run_id=run, node="filter_rank")
+            [r.offer.evidence_id for r in ranked[:5] if r.offer.evidence_id] or all_ev, run_id=run, node="filter_rank")
     c.log_event("ranked", {"ranker": used, "options": len(ranked)})
-    return {"ranked": [r.model_dump(mode="json") for r in ranked], "ranker": used}
+    by_id = {o.offer_id: o for o in offers}
+    near = [{"offer_id": x["offer_id"], "item": by_id[x["offer_id"]].item, "why": x["reason"],
+             "evidence_id": ev_of.get(x["offer_id"])}
+            for x in fr.removed if x["reason"].startswith(("over budget", "too slow"))] if not ranked else []
+    return {"ranked": [r.model_dump(mode="json") for r in ranked], "ranker": used, "near_misses": near}
 
 
 # ---------------------------------------------------------------- persist_learn
@@ -292,6 +298,10 @@ def run_distiller(user_id: str, run_id: str) -> list[dict]:
         return []
     new_orders, new_rej = distill.episodes_since(user_id, store.last_distilled_at(user_id))
     all_orders, all_rej = distill.history(user_id)
+    new_ids = [e.get("order_id") or e.get("interaction_id") for e in [*new_orders, *new_rej]]
+    ev = c.audit("evidence", {"what": "episodes read for the distiller", "new_episode_ids": new_ids,
+                              "orders": len(all_orders), "rejections": len(all_rej)},
+                 run_id=run_id, node="distill_preferences")
     prefs = distill.count_preferences(all_orders, all_rej)   # also the preference -> episode-ID map
     mode = "counting"
     if config.distiller_name() == "cognee":
@@ -300,15 +310,14 @@ def run_distiller(user_id: str, run_id: str) -> list[dict]:
             mode = "cognee"
         except Exception as exc:
             c.audit("inference", {"what": "Cognee distiller failed; counting distiller used",
-                                  "error": type(exc).__name__}, run_id=run_id, node="distill_preferences")
+                                  "error": type(exc).__name__}, [ev], run_id=run_id, node="distill_preferences")
     for p in prefs:
         assert p["kind"] == "soft" and p["source"] == "learned"   # the distiller never writes a hard rule
         c.write_preference(user_id, p)
     store.set_last_distilled(user_id, c.now())
-    new_ids = [e.get("order_id") or e.get("interaction_id") for e in [*new_orders, *new_rej]]
     c.audit("inference", {"what": "learned soft preferences", "distiller": mode, "new_episode_ids": new_ids,
                           "preferences": [{k: p[k] for k in ("text", "confidence", "episode_ids")} for p in prefs]},
-            run_id=run_id, node="distill_preferences")
+            [ev], run_id=run_id, node="distill_preferences")
     c.log_event("distiller_run", {"distiller": mode, "preferences": len(prefs)})
     return prefs
 
