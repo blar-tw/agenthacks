@@ -299,6 +299,12 @@ def health() -> dict:
     return {"ok": True, "node_sources": NODE_SOURCES, "statsig": statsig}
 
 
+@app.get("/app", include_in_schema=False)
+def customer_ui() -> FileResponse:
+    """The customer view: the same page without the process visuals and the audit trail."""
+    return ui()
+
+
 @app.get("/", include_in_schema=False)
 def ui() -> FileResponse:
     if not UI_PAGE.exists():
